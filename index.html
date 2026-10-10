@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GAMEGURU.AI - Hybrid v5 (1M + 30S · 4 Servers)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --bg-gradient: linear-gradient(135deg, #0d0f18 0%, #13182d 50%, #0a0c14 100%);
+        --panel-bg: rgba(20, 24, 42, 0.85);
+        --accent-gold: #f1c40f;
+        --accent-purple: #a855f7;
+        --accent-cyan: #00e5ff;
+        --accent-green: #22c55e;
+        --accent-red: #ef4444;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; }
+    body { background: var(--bg-gradient); color:var(--text-main); min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; }
+    
+    /* Login & Admin Panel */
+    .login-container, .admin-container { width:100%; max-width:420px; background:var(--panel-bg); backdrop-filter: blur(12px); border: 1px solid rgba(241,196,15,0.2); border-radius:20px; padding:35px; box-shadow:0 20px 40px rgba(0,0,0,0.6); text-align:center; }
+    .login-logo { font-size:32px; color:var(--accent-gold); margin-bottom:20px; text-shadow:0 0 15px rgba(241,196,15,0.6); font-family:'Orbitron',sans-serif; font-weight:900; letter-spacing:1px; }
+    .login-form input, .admin-input { width:100%; padding:15px; margin-bottom:15px; border:1px solid rgba(255,255,255,0.1); border-radius:10px; background:rgba(15, 23, 42, 0.7); color:#fff; font-size:16px; outline:none; transition:all 0.3s; }
+    .login-form input:focus, .admin-input:focus { border-color:var(--accent-gold); box-shadow:0 0 10px rgba(241,196,15,0.3); }
+    .login-btn, .btn { background:linear-gradient(135deg,#e74c3c,#c0392b); color:#fff; border:none; padding:16px; border-radius:12px; width:100%; font-size:18px; cursor:pointer; transition:all .3s; font-weight:bold; margin-top:10px; box-shadow:0 6px 15px rgba(231,76,60,0.4); font-family:'Orbitron',sans-serif; letter-spacing:0.5px; }
+    .login-btn:hover, .btn:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(231,76,60,0.6); }
+    .error-message { color:var(--accent-red); margin-top:10px; display:none; font-size:14px; }
+    
+    /* Main Dashboard Container */
+    .container { width:100%; max-width:540px; background:var(--panel-bg); backdrop-filter: blur(12px); border: 1px solid rgba(241,196,15,0.25); border-radius:20px; padding:25px; box-shadow:0 20px 40px rgba(0,0,0,0.6); position:relative; overflow:hidden; display:none; }
+    .cracked-text { position:absolute; top:12px; right:15px; font-size:10px; color:var(--accent-gold); opacity:.8; font-family:'Orbitron',sans-serif; letter-spacing:1px; }
+    .king-badge { position:absolute; top:12px; left:15px; background:linear-gradient(135deg,var(--accent-gold),#e67e22); padding:5px 12px; border-radius:20px; font-size:11px; font-weight:900; color:#1a1a2e; font-family:'Orbitron',sans-serif; letter-spacing:0.5px; }
+    
+    header { text-align:center; margin-top:15px; margin-bottom:16px; padding-bottom:15px; border-bottom:1px solid rgba(255,255,255,0.1); }
+    h1 { font-size:28px; color:var(--accent-gold); margin-bottom:5px; text-shadow:0 0 12px rgba(241,196,15,0.4); font-family:'Orbitron',sans-serif; font-weight:900; letter-spacing:2px; }
+    h2 { font-size:18px; color:var(--accent-red); font-family:'Orbitron',sans-serif; letter-spacing:1px; }
+    
+    .period-info { background:rgba(15, 23, 42, 0.6); border:1px solid rgba(255,255,255,0.05); padding:14px; border-radius:12px; text-align:center; margin-bottom:16px; font-size:15px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .period-info .period-number { font-weight:bold; color:var(--accent-gold); font-family:'JetBrains Mono',monospace; letter-spacing:1px; word-break:break-all; text-align:right; }
+    .countdown { font-size:32px; color:var(--accent-gold); font-weight:900; text-align:center; margin:15px 0; padding:12px; background:rgba(0,0,0,0.4); border-radius:12px; border:1px solid rgba(241,196,15,0.3); font-family:'Orbitron',monospace; text-shadow:0 0 10px rgba(241,196,15,0.4); }
+    .time-info { text-align:center; margin-bottom:8px; font-size:13px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; }
+    
+    .result-table { width:100%; border-collapse:collapse; margin-bottom:20px; background:rgba(15, 23, 42, 0.5); border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.05); }
+    .result-table th { background:#1e293b; padding:12px; text-align:center; font-weight:600; font-size:13px; color:var(--text-muted); font-family:'Orbitron',sans-serif; }
+    .result-table td { padding:10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.05); font-size:14px; font-family:'JetBrains Mono',monospace; }
+    .small { color:var(--accent-cyan); font-weight:bold; }
+    .big   { color:var(--accent-red); font-weight:bold; }
+    .green { color:var(--accent-green); font-weight:bold; }
+    .red   { color:var(--accent-red); font-weight:bold; }
+    
+    .btn:disabled { background:linear-gradient(to right,#475569,#64748b); cursor:not-allowed; box-shadow:none; }
+    .option-container { display:flex; justify-content:space-between; margin:16px 0; gap:12px; }
+    .option-btn { flex:1; padding:14px; border-radius:12px; background:linear-gradient(to bottom,#1e293b,#0f172a); border:2px solid rgba(255,255,255,0.1); color:#fff; cursor:pointer; text-align:center; font-weight:bold; transition:all .3s; font-family:'Orbitron',sans-serif; font-size:12px; }
+    .option-btn.active { border-color:var(--accent-gold); background:linear-gradient(to bottom,#292524,#1c1917); box-shadow:0 0 15px rgba(241,196,15,0.4); color:var(--accent-gold); }
+    
+    .wingo-type-container { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:8px 0 14px; }
+    .wingo-type-btn { padding:14px 8px; border-radius:12px; cursor:pointer; text-align:center; background:linear-gradient(to bottom,#1e293b,#0f172a); border:2px solid rgba(255,255,255,0.1); transition:all .3s; position:relative; }
+    .wingo-type-btn .wt-title { font-weight:800; font-size:13px; letter-spacing:.5px; color:#cbd5e1; font-family:'Orbitron',sans-serif; }
+    .wingo-type-btn .wt-desc  { font-size:10px; color:var(--text-muted); margin-top:4px; }
+    .wingo-type-btn.active { border-color:var(--accent-gold); background:linear-gradient(to bottom,#292524,#1c1917); box-shadow:0 0 18px rgba(241,196,15,0.4); }
+    .wingo-type-btn.active .wt-title { color:var(--accent-gold); text-shadow:0 0 8px rgba(241,196,15,0.5); }
+    
+    .server-container { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:14px 0 10px; }
+    .server-btn { padding:14px 8px; border-radius:12px; cursor:pointer; text-align:center; background:linear-gradient(to bottom,#1e293b,#0f172a); border:2px solid rgba(255,255,255,0.1); transition:all .3s; position:relative; }
+    .server-btn .srv-title { font-weight:800; font-size:12px; letter-spacing:.3px; font-family:'Orbitron',sans-serif; }
+    .server-btn .srv-desc  { font-size:10px; color:var(--text-muted); margin-top:4px; }
+    .server-btn.active { border-color:var(--accent-gold); background:linear-gradient(to bottom,#292524,#1c1917); box-shadow:0 0 18px rgba(241,196,15,0.4); }
+    .server-tag { position:absolute; top:-8px; right:8px; font-size:9px; font-weight:800; padding:2px 7px; border-radius:10px; background:var(--accent-gold); color:#1a1a2e; font-family:'Orbitron',sans-serif; }
+    
+    .prediction-result { text-align:center; padding:22px; background:rgba(15, 23, 42, 0.7); border:1px solid rgba(255,255,255,0.08); border-radius:14px; margin-top:20px; min-height:180px; display:flex; flex-direction:column; justify-content:center; align-items:center; }
+    .prediction-text { font-size:14px; margin-bottom:8px; color:var(--text-muted); font-family:'Orbitron',sans-serif; }
+    .prediction-value { font-size:46px; font-weight:900; text-shadow:0 0 15px rgba(255,255,255,0.6); font-family:'Orbitron',sans-serif; }
+    .prediction-meta { font-size:12px; color:var(--text-muted); margin-top:10px; line-height:1.6; }
+    
+    .balls-row { display:flex; justify-content:center; gap:16px; margin-top:14px; flex-wrap:wrap; }
+    .ball-img-wrap { display:flex; flex-direction:column; align-items:center; gap:6px; }
+    .ball-img { width:55px; height:55px; object-fit:contain; filter: drop-shadow(0 0 10px rgba(241,196,15,0.5)); transition: transform .3s; }
+    .ball-cap { font-family:'Orbitron',monospace; font-size:9px; font-weight:800; letter-spacing:1px; color:var(--text-muted); }
+    .ball-cap.fav { color:var(--accent-green); }
+    .ball-cap.opp { color:var(--accent-cyan); }
+    
+    .copy-card { margin-top:16px; padding:16px; border-radius:14px; background:linear-gradient(135deg, rgba(168,85,247,0.15), rgba(239,68,68,0.15)); border:1.5px solid rgba(241,196,15,0.5); display:none; text-align:left; }
+    .copy-card.show { display:block; animation:copyPop .4s ease-out; }
+    @keyframes copyPop { 0% { transform:scale(.95); opacity:0; } 100% { transform:scale(1); opacity:1; } }
+    .copy-card .cc-brand { font-family:'Orbitron',sans-serif; font-weight:900; font-size:13px; letter-spacing:2px; text-align:center; color:var(--accent-gold); margin-bottom:8px; }
+    .copy-card .cc-bold { font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.8; color:#f8fafc; white-space:pre; overflow-x:auto; }
+    .copy-row { display:flex; gap:8px; margin-top:12px; }
+    .copy-btn { flex:1; padding:12px; border:none; border-radius:10px; font-weight:bold; font-size:14px; cursor:pointer; background:linear-gradient(135deg,var(--accent-purple),#ec4899); color:#fff; box-shadow:0 4px 12px rgba(168,85,247,0.4); font-family:'Orbitron',sans-serif; transition:all 0.3s; }
+    .copy-btn:hover { transform:translateY(-2px); box-shadow:0 6px 16px rgba(168,85,247,0.6); }
+    .copy-btn.copied { background:linear-gradient(135deg,var(--accent-green),#10b981); }
+    
+    .hidden { display:none !important; }
+    .loading { display:inline-block; width:22px; height:22px; border:3px solid rgba(255,255,255,0.3); border-radius:50%; border-top-color:var(--accent-gold); animation:spin 1s ease-in-out infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    
+    .footer { margin-top:20px; text-align:center; font-size:11px; color:var(--text-muted); font-family:'Orbitron',sans-serif; letter-spacing:1px; }
+    .color-indicators { display:flex; justify-content:center; gap:15px; margin:12px 0; font-size:12px; }
+    .color-indicator { display:flex; align-items:center; gap:6px; }
+    .color-box { width:14px; height:14px; border-radius:4px; }
+    .green-box { background-color:var(--accent-green); }
+    .red-box   { background-color:var(--accent-red); }
+    
+    .api-status { text-align:center; margin:8px 0; font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; }
+    .pulse { animation:pulse 2s infinite; }
+    @keyframes pulse { 0%{transform:scale(1);} 50%{transform:scale(1.03);} 100%{transform:scale(1);} }
+    
+    .telegram-btn { display:flex; align-items:center; justify-content:center; gap:8px; background:linear-gradient(135deg,#0088cc,#00a2e8); color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:bold; font-size:15px; margin-top:14px; box-shadow:0 4px 12px rgba(0,136,204,0.3); transition:all .3s; font-family:'Orbitron',sans-serif; }
+    .telegram-btn:hover { transform:translateY(-2px); box-shadow:0 6px 16px rgba(0,136,204,0.5); }
+    
+    .notice { background:rgba(241,196,15,0.08); border:1px solid rgba(241,196,15,0.25); color:var(--accent-gold); font-size:11px; line-height:1.5; padding:10px; border-radius:10px; margin-bottom:14px; text-align:left; }
+    
+    .stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:14px; }
+    .stat-card { background:rgba(15, 23, 42, 0.6); border:1px solid rgba(255,255,255,0.05); border-radius:10px; padding:10px 6px; text-align:center; }
+    .stat-card .label { font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; font-family:'Orbitron',sans-serif; }
+    .stat-card .value { font-size:16px; font-weight:900; color:var(--accent-gold); margin-top:4px; font-family:'Orbitron',monospace; }
+    
+    .last-result { margin-top:12px; padding:12px; border-radius:10px; text-align:center; font-size:12px; font-weight:bold; background:rgba(15, 23, 42, 0.6); color:var(--text-muted); line-height:1.5; }
+    .last-result.win  { background:rgba(34,197,94,0.15); color:var(--accent-green); border:1px solid rgba(34,197,94,0.3); }
+    .last-result.loss { background:rgba(239,68,68,0.15); color:var(--accent-red); border:1px solid rgba(239,68,68,0.3); }
+    
+    .mode-badge { display:inline-block; font-size:10px; font-weight:800; padding:3px 10px; border-radius:10px; margin-bottom:6px; letter-spacing:.5px; font-family:'Orbitron',sans-serif; }
+    .mode-badge.hybrid   { background:rgba(168,85,247,0.2); color:#c084fc; border:1px solid var(--accent-purple); }
+    .mode-badge.mohit    { background:rgba(0,229,255,0.15); color:var(--accent-cyan); border:1px solid var(--accent-cyan); }
+    .mode-badge.sukuna   { background:rgba(239,68,68,0.18); color:var(--accent-red); border:1px solid var(--accent-red); }
+    .mode-badge.shinchan { background:rgba(34,197,94,0.18); color:var(--accent-green); border:1px solid var(--accent-green); }
+    
+    .toast { position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-70px); background:linear-gradient(135deg,var(--accent-green),#10b981); color:#fff; padding:12px 24px; border-radius:12px; font-weight:bold; font-size:14px; z-index:9999; transition:transform .3s cubic-bezier(0.175,0.885,0.32,1.275); box-shadow:0 8px 20px rgba(34,197,94,0.4); font-family:'Orbitron',sans-serif; }
+    .toast.show { transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast">Copied!</div>
+
+<!-- Login Container -->
+<div class="login-container" id="login-container">
+    <div class="login-logo"><i class="fas fa-crown"></i> GAMEGURU.AI</div>
+    <div class="login-form">
+        <input type="text" id="username-input" placeholder="Enter Username (e.g. GAMEGURUAI145)">
+        <input type="password" id="password-input" placeholder="Enter Password">
+        <button class="login-btn" id="login-btn">LOGIN / SIGNUP</button>
+        <div class="error-message" id="error-message">Invalid credentials or account pending approval.</div>
+        <a class="telegram-btn" href="https://t.me/WINGOMAN_CHAT_SUPPORT_BOT" target="_blank" rel="noopener">
+            <i class="fab fa-telegram"></i> Join Telegram Channel
+        </a>
+    </div>
+</div>
+
+<!-- Admin Dashboard Container -->
+<div class="admin-container hidden" id="admin-container">
+    <div class="login-logo"><i class="fas fa-user-shield"></i> ADMIN PANEL</div>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:15px;">Welcome Admin: <b>GAMEGURUAI145</b></p>
+    <div id="admin-users-list" style="max-height:250px; overflow-y:auto; margin-bottom:15px; text-align:left; background:rgba(15,23,42,0.6); padding:10px; border-radius:10px;">
+        <!-- User list rendered via JS -->
+    </div>
+    <button class="btn" id="admin-goto-app-btn">OPEN PREDICTOR APP</button>
+</div>
+
+<!-- Main App Container -->
+<div class="container" id="app-container">
+    <div class="king-badge pulse">GAMEGURU.AI</div>
+    <div class="cracked-text">Powered By GAMEGURU.AI</div>
+
+    <header>
+        <h1>HYPIROTOR</h1>
+        <h2>PREDICTOR v5</h2>
+    </header>
+
+    <div class="api-status" id="api-status">API: Connecting...</div>
+
+    <div id="option-page">
+        <div class="period-info">
+            <span>Period:</span>
+            <span class="period-number" id="period-number">Loading...</span>
+        </div>
+
+        <div class="time-info" id="time-info">Indian Standard Time (IST): Loading...</div>
+        <div class="countdown" id="countdown">00:00</div>
+
+        <h3 style="text-align:center;margin-bottom:6px;color:var(--text-muted);font-family:'Orbitron',sans-serif;font-size:13px;">Select Wingo Type</h3>
+
+        <div class="wingo-type-container">
+            <div class="wingo-type-btn active" data-type="1M">
+                <div class="wt-title"><i class="fas fa-clock"></i> 1 MIN</div>
+                <div class="wt-desc">Every 60 seconds</div>
+            </div>
+            <div class="wingo-type-btn" data-type="30S">
+                <div class="wt-title"><i class="fas fa-bolt"></i> 30 SEC</div>
+                <div class="wt-desc">Every 30 seconds</div>
+            </div>
+        </div>
+
+        <h3 style="text-align:center;margin-bottom:6px;color:var(--text-muted);font-family:'Orbitron',sans-serif;font-size:13px;">Select Prediction Server</h3>
+
+        <div class="server-container">
+            <div class="server-btn hybrid active" data-server="hybrid">
+                <div class="server-tag">1</div>
+                <div class="srv-title"><i class="fas fa-bolt"></i> HYBRID ALL</div>
+                <div class="srv-desc">4 engines fused</div>
+            </div>
+            <div class="server-btn mohit" data-server="mohit">
+                <div class="server-tag">2</div>
+                <div class="srv-title"><i class="fas fa-fire"></i> MOHIT</div>
+                <div class="srv-desc">Trend + seed</div>
+            </div>
+            <div class="server-btn sukuna" data-server="sukuna">
+                <div class="server-tag">3</div>
+                <div class="srv-title"><i class="fas fa-dragon"></i> SUKUNA</div>
+                <div class="srv-desc">Ryomen v16 DB</div>
+            </div>
+            <div class="server-btn shinchan" data-server="shinchan">
+                <div class="server-tag">4</div>
+                <div class="srv-title"><i class="fas fa-shield-halved"></i> SHINCHAN</div>
+                <div class="srv-desc">Stable Trend v5.4</div>
+            </div>
+        </div>
+
+        <h3 style="text-align:center;margin:16px 0 4px;color:var(--text-muted);font-family:'Orbitron',sans-serif;font-size:13px;">Select Prediction Type</h3>
+
+        <div class="option-container">
+            <div class="option-btn" data-option="number"><i class="fas fa-hashtag"></i> Number</div>
+            <div class="option-btn" data-option="size"><i class="fas fa-exchange-alt"></i> Big/Small</div>
+        </div>
+
+        <button class="btn" id="confirm-btn"><i class="fas fa-check-circle"></i> CONFIRM SELECTION</button>
+
+        <div class="color-indicators">
+            <div class="color-indicator"><div class="color-box green-box"></div><span>Green (1,3,5,7,9)</span></div>
+            <div class="color-indicator"><div class="color-box red-box"></div><span>Red (0,2,4,6,8)</span></div>
+        </div>
+
+        <a class="telegram-btn" href="https://t.me/WINGOMAN_CHAT_SUPPORT_BOT" target="_blank" rel="noopener">
+            <i class="fab fa-telegram"></i> Join Telegram Channel
+        </a>
+    </div>
+
+    <div id="prediction-page" class="hidden">
+        <div class="period-info">
+            <span>Period:</span>
+            <span class="period-number" id="current-period">Loading...</span>
+        </div>
+
+        <div class="time-info" id="prediction-time-info">Indian Standard Time (IST): Loading...</div>
+        <div class="countdown" id="prediction-countdown">00:00</div>
+
+        <div class="notice">
+            <i class="fas fa-info-circle"></i>
+            Predictions are statistical pattern heuristics only. Draw results are random —
+            no outcome can be guaranteed. Play responsibly.
+        </div>
+
+        <table class="result-table">
+            <thead><tr><th>Period</th><th>Number</th><th>Big Small</th><th>Color</th></tr></thead>
+            <tbody id="result-body"><tr><td>Loading...</td><td>-</td><td>-</td><td>-</td></tr></tbody>
+        </table>
+
+        <button class="btn" id="prediction-btn"><i class="fas fa-brain"></i> GET PREDICTION</button>
+
+        <div class="prediction-result">
+            <div class="prediction-text">Prediction for next round:</div>
+            <div class="prediction-value" id="prediction-value">-</div>
+            <div class="balls-row" id="balls-row"></div>
+            <div class="prediction-meta" id="prediction-meta"></div>
+        </div>
+
+        <div class="copy-card" id="copy-card">
+            <div class="cc-brand">⚡ GAMEGURU.AI PREDICTION ⚡</div>
+            <div class="cc-bold" id="copy-body"></div>
+            <div class="copy-row">
+                <button class="copy-btn" id="copy-btn"><i class="fas fa-copy"></i> COPY PREDICTION</button>
+            </div>
+        </div>
+
+        <div class="last-result" id="last-result">No settled predictions yet.</div>
+
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card"><div class="label">Wins</div><div class="value" id="stat-wins">0</div></div>
+            <div class="stat-card"><div class="label">Losses</div><div class="value" id="stat-losses">0</div></div>
+            <div class="stat-card"><div class="label">Accuracy</div><div class="value" id="stat-acc">—</div></div>
+            <div class="stat-card"><div class="label">Streak W</div><div class="value" id="stat-sw">0</div></div>
+            <div class="stat-card"><div class="label">Streak L</div><div class="value" id="stat-sl">0</div></div>
+            <div class="stat-card"><div class="label">High SW</div><div class="value" id="stat-hsw">0</div></div>
+            <div class="stat-card"><div class="label">High SL</div><div class="value" id="stat-hsl">0</div></div>
+            <div class="stat-card"><div class="label">Bets</div><div class="value" id="stat-bets">0</div></div>
+        </div>
+
+        <a class="telegram-btn" href="https://t.me/WINGOMAN_CHAT_SUPPORT_BOT" target="_blank" rel="noopener">
+            <i class="fab fa-telegram"></i> Join Telegram Channel
+        </a>
+    </div>
+
+    <div class="footer"><p>GAMEGURU.AI Prediction System © 2026</p></div>
+</div>
+
+<script>
+function toBold(str){
+    const map = {
+        'A':'𝗔','B':'𝗕','C':'𝗖','D':'𝗗','E':'𝗘','F':'𝗙','G':'𝗚','H':'𝗛','I':'𝗜','J':'𝗝','K':'𝗞','L':'𝗟','M':'𝗠',
+        'N':'𝗡','O':'𝗢','P':'𝗣','Q':'𝗤','R':'𝗥','S':'𝗦','T':'𝗧','U':'𝗨','V':'𝗩','W':'𝗪','X':'𝗫','Y':'𝗬','Z':'𝗭',
+        'a':'𝗮','b':'𝗯','c':'𝗰','d':'𝗱','e':'𝗲','f':'𝗳','g':'𝗴','h':'𝗵','i':'𝗶','j':'𝗷','k':'𝗸','l':'𝗹','m':'𝗺',
+        'n':'𝗻','o':'𝗼','p':'𝗽','q':'𝗾','r':'𝗿','s':'𝘀','t':'𝘁','u':'𝘂','v':'𝘃','w':'𝘄','x':'𝘅','y':'𝘆','z':'𝘇',
+        '0':'𝟬','1':'𝟭','2':'𝟮','3':'𝟯','4':'𝟰','5':'𝟱','6':'𝟲','7':'𝟳','8':'𝟴','9':'𝟵'
+    };
+    return String(str).split('').map(ch => map[ch] || ch).join('');
+}
+
+const BALL_IMGS = {
+    0: 'https://i.ibb.co/WvTR3Jrx/num0.png', 1: 'https://i.ibb.co/yFQwGPZv/num1.png',
+    2: 'https://i.ibb.co/XZNjXwjq/num2.png', 3: 'https://i.ibb.co/233fFQqz/num3.png',
+    4: 'https://i.ibb.co/mVsBYfQR/num4.png', 5: 'https://i.ibb.co/Dg5kjr9L/num5.png',
+    6: 'https://i.ibb.co/Z1HMQSPM/num6.png', 7: 'https://i.ibb.co/0y8yYzDH/num7.png',
+    8: 'https://i.ibb.co/dsRvZmSf/num8.png', 9: 'https://i.ibb.co/prMV31Ng/num9.png'
+};
+
+/* --- 4 ENGINES (UNCHANGED LOGIC) --- */
+class UltimatePredictorV12 {
+    constructor() {
+        this.hallOfFame = { BIG_KINGS:[8,9], SMALL_KINGS:[1,2] };
+        this.directRules = {
+            'BB':{next:'SMALL',numbers:[1,2],score:78}, 'SS':{next:'BIG',numbers:[8,9],score:78},
+            'BBB':{next:'SMALL',numbers:[1],score:80}, 'SSS':{next:'BIG',numbers:[8],score:80},
+            'BSB':{next:'SMALL',numbers:[2],score:72}, 'SBS':{next:'BIG',numbers:[9],score:72},
+            'BBS':{next:'BIG',numbers:[9],score:70},   'SSB':{next:'SMALL',numbers:[2],score:70}
+        };
+        this.wins=0; this.losses=0; this.jackpots=0;
+        this.consecutiveLoss=0; this.consecutiveWin=0;
+        this.highestWinStreak=0; this.highestLossStreak=0;
+        this.lastLossSize=null; this.totalBets=0;
+        this.predictionHistory = [];
+    }
+    applyDirectRules(h){
+        if(h.length<2) return null;
+        let p="";
+        for(let i=0;i<Math.min(4,h.length);i++) p += h[i]>=5?'B':'S';
+        for(let len=Math.min(4,p.length);len>=2;len--){
+            const sub=p.substring(0,len);
+            if(this.directRules[sub]){ const r=this.directRules[sub]; return { prediction:r.next, number:r.numbers[0], score:r.score, rule:sub }; }
+        }
+        return null;
+    }
+    analyzeStreak(h){
+        if(h.length<2) return null;
+        let streak=1; const dir=h[0]>=5?'BIG':'SMALL';
+        for(let i=1;i<Math.min(10,h.length);i++){ if((h[i]>=5?'BIG':'SMALL')===dir) streak++; else break; }
+        if(streak>=2){ const od=dir==='BIG'?'SMALL':'BIG'; return { prediction:od, number:od==='BIG'?8:1, score:Math.min(85,68+streak*2), streak, direction:dir }; }
+        return null;
+    }
+    getForcedReverse(){
+        if(this.lastLossSize==='BIG')   return { prediction:'SMALL', number:1, score:72, forced:true };
+        if(this.lastLossSize==='SMALL') return { prediction:'BIG',   number:8, score:72, forced:true };
+        return null;
+    }
+    getSmartNumber(size,h){
+        const c = size==='BIG'?[...this.hallOfFame.BIG_KINGS]:[...this.hallOfFame.SMALL_KINGS];
+        const scored = c.map(num=>{
+            let s=50;
+            if(num===8)s+=30; else if(num===9)s+=28; else if(num===1)s+=25; else if(num===2)s+=23;
+            for(let i=0;i<Math.min(10,h.length);i++) if(h[i]===num) s+=Math.pow(0.85,i)*10;
+            const li=h.indexOf(num);
+            if(li===-1) s+=15; else s+=Math.min(10,h.length-1-li);
+            return {number:num,score:s};
+        });
+        scored.sort((a,b)=>b.score-a.score);
+        return scored[0].number;
+    }
+    predict(history){
+        const h = history.map(v=>typeof v==='number'?v:parseInt(v.number||v.num,10)).filter(v=>!isNaN(v));
+        if(this.consecutiveLoss>=1){ const f=this.getForcedReverse(); if(f) return { predictedNumber:f.number, predictedSize:f.prediction, partnerNumber:(f.prediction==='BIG'?9:2), score:f.score, logic:'REVERSE_AFTER_LOSS', label:'🔄 Reverse after loss', forcedReverse:true }; }
+        const r=this.applyDirectRules(h);
+        if(r) return { predictedNumber:r.number, predictedSize:r.prediction, partnerNumber:(r.prediction==='BIG'?9:2), score:r.score, logic:'DIRECT_RULE', label:`📐 Rule "${r.rule}"` };
+        const s=this.analyzeStreak(h);
+        if(s&&s.streak>=2){ const num=this.getSmartNumber(s.prediction,h); return { predictedNumber:num, predictedSize:s.prediction, partnerNumber:(s.prediction==='BIG'?9:2), score:s.score, logic:'STREAK_ANALYSIS', label:`📊 ${s.streak}× ${s.direction}→breaker` }; }
+        let rb=0;
+        for(let i=0;i<Math.min(5,h.length);i++) if(h[i]>=5) rb++;
+        const dp = rb>=3?'SMALL':'BIG';
+        return { predictedNumber: dp==='BIG'?8:1, predictedSize:dp, partnerNumber: dp==='BIG'?9:2, score:60, logic:'SMART_DEFAULT', label:'🔒 Trend default' };
+    }
+    settle(pn,ps,an){
+        const as = an>=5?'BIG':'SMALL';
+        const exact = an===pn, size = as===ps;
+        let r;
+        if(exact){ 
+            r={win:true,jackpot:true,status:'JACKPOT'}; this.jackpots++; this.wins++; this.consecutiveWin++; this.consecutiveLoss=0; 
+        } else if(size){ 
+            r={win:true,jackpot:false,status:'WIN'}; this.wins++; this.consecutiveWin++; this.consecutiveLoss=0; 
+        } else { 
+            r={win:false,jackpot:false,status:'LOSS'}; this.losses++; this.consecutiveLoss++; this.consecutiveWin=0; this.lastLossSize=as; 
+        }
+        if(this.consecutiveWin > this.highestWinStreak) this.highestWinStreak = this.consecutiveWin;
+        if(this.consecutiveLoss > this.highestLossStreak) this.highestLossStreak = this.consecutiveLoss;
+        this.totalBets++;
+        return r;
+    }
+    getStats(){
+        const t=this.wins+this.losses;
+        return { wins:this.wins, losses:this.losses, jackpots:this.jackpots, total:t,
+                 accuracy: t?Math.round((this.wins/t)*100):0,
+                 consecutiveLoss:this.consecutiveLoss, consecutiveWin:this.consecutiveWin,
+                 highestWinStreak:this.highestWinStreak, highestLossStreak:this.highestLossStreak, totalBets:this.totalBets };
+    }
+}
+
+class MohitEngine {
+    predict(latestIssue, historyNumbers){
+        const hist = (historyNumbers||[]).filter(n=>!isNaN(n));
+        const seed = parseInt(String(latestIssue).slice(-3),10)||0;
+        const hs = hist.slice(0,10);
+        if(hs.length===0) return { predictedNumber:8, predictedSize:'BIG', partnerNumber:3, score:74, logic:'MOHIT', label:'🔥 Mohit Pure', seed:0, bigBias:0 };
+        const bigBias = hs.filter(n=>n>=5).length;
+        let trend = (seed%2===0) ? (bigBias>=5?'BIG':'SMALL') : (hs[0]>=5?'SMALL':'BIG');
+        let n1,n2; const first=hs[0]||0;
+        if(trend==='BIG'){ n1=[5,6,7,8,9][(seed+first)%5]; n2=[0,1,2,3,4][(seed*3)%5]; }
+        else{ n1=[0,1,2,3,4][(seed+first)%5]; n2=[5,6,7,8,9][(seed*7)%5]; }
+        return { predictedNumber: n1, predictedSize: trend, partnerNumber: n2, score:74, logic:'MOHIT', label:'🔥 Mohit Pure', seed, bigBias };
+    }
+}
+
+const SUKUNA_HISTORY = [2,1,2,0,5,5,5,6,0,7,1,2,6,1,9,7,6,5,0,0,0,8,4,5,2,4,3,9,4,9,4,1,2,3,4,4,2,6,1,2,9,6,1,9,2,8,9,1,8,7,2,9,5,9,5,6,3,0,6,8,2,9,3,8,6,8,5,0,6,8,6,9,8,5,3,1,4,4,9,8,9,1,4,8,3,4,3,5,2,1,3,3,2,3,6,8,2,9,4,5];
+class SukunaEngine {
+    constructor() { this.history = SUKUNA_HISTORY; this.cache = new Map(); }
+    getLivePattern(apiList, count=20){
+        const nums=[];
+        for(let i=0;i<Math.min(count,apiList.length);i++) nums.push(Number(apiList[i].number));
+        return nums.reverse();
+    }
+    findExactMatches(pattern, maxResults=100){
+        const key = pattern.join(',');
+        if(this.cache.has(key)) return this.cache.get(key);
+        const matches=[]; const len=pattern.length;
+        if(len===0||len>20){ this.cache.set(key,matches); return matches; }
+        for(let i=0;i<=this.history.length-len-1;i++){
+            let ok=true;
+            for(let j=0;j<len;j++){ if(this.history[i+j]!==pattern[j]){ ok=false; break; } }
+            if(ok){ matches.push({ nextNumber:this.history[i+len] }); if(matches.length>=maxResults) break; }
+        }
+        this.cache.set(key,matches);
+        return matches;
+    }
+    findFuzzyMatches(pattern, tol=1, maxResults=50){
+        const matches=[]; const len=pattern.length;
+        for(let i=0;i<=this.history.length-len-1;i++){
+            let diff=0;
+            for(let j=0;j<len;j++){ if(this.history[i+j]!==pattern[j]){ diff++; if(diff>tol) break; } }
+            if(diff<=tol){ matches.push({ nextNumber:this.history[i+len], confidence:100-diff*10 }); if(matches.length>=maxResults) break; }
+        }
+        return matches;
+    }
+    weighted(matches){
+        if(!matches.length) return null;
+        const w={}; let total=0;
+        matches.forEach((m,idx)=>{
+            const posW = 1 + 1/(idx+1);
+            const confW = (m.confidence||100)/100;
+            const weight = posW * confW;
+            w[m.nextNumber] = (w[m.nextNumber]||0) + weight;
+            total += weight;
+        });
+        let best=-1, bw=0;
+        for(const [n,ww] of Object.entries(w)) if(ww>bw){ bw=ww; best=parseInt(n); }
+        return { number: best, confidence: Math.min(99,(bw/total)*100) };
+    }
+    predict(apiList){
+        if(!apiList||!apiList.length) return { predictedNumber:8, predictedSize:'BIG', partnerNumber:3, score:85, logic:'SUKUNA', label:'🐉 Sukuna default' };
+        const live = this.getLivePattern(apiList,20);
+        const preds = [];
+        for(let len=Math.min(live.length,15);len>=3;len--){
+            const sp = live.slice(-len);
+            const m = this.findExactMatches(sp,50);
+            if(m.length){ const r = this.weighted(m); if(r && r.confidence>80){ preds.push({ number:r.number, confidence:r.confidence, method:`EXACT_${len}` }); break; } }
+        }
+        const votes = new Array(10).fill(0);
+        let totalC=0;
+        preds.forEach(p=>{ const w=p.confidence/100; votes[p.number]+=w; totalC+=w; });
+        let best=8, bs=0;
+        for(let i=0;i<=9;i++) if(votes[i]>bs){ bs=votes[i]; best=i; }
+        let conf = totalC>0 ? (bs/totalC)*100 : 70;
+        conf = Math.min(99,Math.max(70,conf));
+        let second = best>=5 ? (best===9?8:best+1) : (best===0?1:best+1);
+        return { predictedNumber:best, predictedSize: best>=5?'BIG':'SMALL', partnerNumber:second, score:Math.round(conf), logic:'SUKUNA', label:`🐉 Sukuna v16` };
+    }
+}
+
+class ShinchanEngine {
+    constructor(){ this.activeStrategy = 1; }
+    predict(currentPeriodStr, historyNumbers){
+        const periodStr = String(currentPeriodStr || '1000');
+        const digits = periodStr.split('').map(Number).filter(d=>!isNaN(d));
+        let sum = digits.reduce((a,b)=>a+b,0);
+        let tail = digits[digits.length-1] || 1;
+        const hist = (historyNumbers||[]).slice(0,5);
+        let historyScore = hist.length >= 5 ? hist.reduce((acc,val,idx)=>acc + (val * (5-idx)), 0) : sum * 3;
+        let calculatedIndex = (sum*5 + tail*7 + historyScore*11) % 20;
+        let type = (calculatedIndex % 2 === 0 || sum % 2 === 1) ? 'BIG' : 'SMALL';
+        let num1 = type==='BIG' ? 8 : 1;
+        let num2 = type==='BIG' ? 9 : 2;
+        return { predictedNumber: num1, partnerNumber: num2, predictedSize: type, score: 96, logic: 'SHINCHAN', label: `🛡️ Shinchan Stable v5.4` };
+    }
+}
+
+function combineHybrid(kingg, mohit, sukuna, shinchan){
+    const votes = { BIG:0, SMALL:0 };
+    votes[kingg.predictedSize] += 1.0; votes[mohit.predictedSize] += 0.8;
+    votes[sukuna.predictedSize] += 1.0; votes[shinchan.predictedSize] += 1.0;
+    const finalSize = votes.BIG >= votes.SMALL ? 'BIG' : 'SMALL';
+    const agreement = kingg.predictedSize === mohit.predictedSize && mohit.predictedSize === sukuna.predictedSize;
+    let finalNumber = sukuna.predictedNumber;
+    if((finalNumber>=5?'BIG':'SMALL') !== finalSize) finalNumber = finalSize==='BIG' ? 8 : 1;
+    let partner = sukuna.partnerNumber;
+    return {
+        predictedNumber: finalNumber, predictedSize: finalSize, partnerNumber: partner,
+        balls: [finalNumber, partner, finalSize==='BIG'?9:2, finalSize==='BIG'?7:1], score: agreement ? 95 : 82, agreement: agreement,
+        logic: 'HYBRID', label: agreement ? '⚡ Hybrid ALL — AGREE' : '⚡ Hybrid ALL — Mixed'
+    };
+}
+
+/* --- CLIENT APPLICATION STATE & AUTH --- */
+const kinggEngine = new UltimatePredictorV12();
+const mohitEngine = new MohitEngine();
+const sukunaEngine = new SukunaEngine();
+const shinchanEngine = new ShinchanEngine();
+
+let currentUser = "";
+let selectedWingoType = '1M';
+let selectedOption = 'number';
+let selectedServer = 'hybrid';
+let countdownInterval, predictionCountdownInterval;
+let last10Data = [], historyNumbers = [];
+let currentPeriod = "", lastIssue = "", latestIssueFull = null;
+let nextDrawTime = null, pendingPrediction = null, lastPredictionForCopy = null;
+
+const $ = id => document.getElementById(id);
+const loginContainer = $('login-container'), adminContainer = $('admin-container'), appContainer =$('app-container');
+const usernameInput = $('username-input'), passwordInput =$('password-input'), loginBtn = $('login-btn'), errorMessage =$('error-message');
+const optionPage = $('option-page'), predictionPage =$('prediction-page');
+const confirmBtn = $('confirm-btn'), predictionBtn =$('prediction-btn');
+const countdownEl = $('countdown'), predictionCountdownEl =$('prediction-countdown');
+const periodNumberEl = $('period-number'), currentPeriodEl =$('current-period');
+const resultBody = $('result-body'), predictionValueEl =$('prediction-value');
+const predictionMetaEl = $('prediction-meta'), ballsRowEl =$('balls-row');
+const lastResultEl = $('last-result'), optionButtons = document.querySelectorAll('.option-btn');
+const serverButtons = document.querySelectorAll('.server-btn'), apiStatusEl = $('api-status');
+const wingoTypeButtons = document.querySelectorAll('.wingo-type-btn');
+const timeInfoEl = $('time-info'), predictionTimeInfoEl =$('prediction-time-info');
+const copyCardEl = $('copy-card'), copyBodyEl =$('copy-body'), copyBtnEl = $('copy-btn'), toastEl =$('toast');
+
+loginBtn.addEventListener('click', async function(){
+    const uname = usernameInput.value.trim();
+    const pwd = passwordInput.value;
+    if(!uname || !pwd){ errorMessage.style.display='block'; errorMessage.textContent='Enter username and password.'; return; }
+
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username: uname, password: pwd})
+        });
+        const data = await res.json();
+        if(data.success){
+            currentUser = uname;
+            loginContainer.style.display = 'none';
+            if(data.isAdmin){
+                adminContainer.classList.remove('hidden');
+                loadAdminUsers();
+            } else if(data.status === 'approved'){
+                appContainer.style.display = 'block';
+                initializeApp();
+            } else {
+                errorMessage.style.display = 'block';
+                errorMessage.textContent = 'Account pending approval by admin (GAMEGURUAI145).';
+            }
+        } else {
+            errorMessage.style.display = 'block';
+            errorMessage.textContent = data.message || 'Login failed.';
+        }
+    } catch(e){
+        // Fallback local check if backend is offline
+        if(uname === 'GAMEGURUAI145'){
+            currentUser = uname;
+            loginContainer.style.display = 'none';
+            adminContainer.classList.remove('hidden');
+            loadAdminUsers();
+        } else {
+            currentUser = uname;
+            loginContainer.style.display = 'none';
+            appContainer.style.display = 'block';
+            initializeApp();
+        }
+    }
+});
+
+async function loadAdminUsers(){
+    try {
+        const res = await fetch('/api/admin/users');
+        const data = await res.json();
+        const listDiv = $('admin-users-list');
+        listDiv.innerHTML = '';
+        if(data.users && data.users.length){
+            data.users.forEach(u => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:13px;';
+                row.innerHTML = `<span><b>${u.username}</b> (${u.status})</span>` +
+                                (u.status === 'approved' ? `<button onclick="setUserStatus('${u.username}', 'pending')" style="background:#ef4444;border:none;color:#fff;padding:4px 8px;border-radius:6px;cursor:pointer;">Pending</button>`
+                                                         : `<button onclick="setUserStatus('${u.username}', 'approved')" style="background:#22c55e;border:none;color:#fff;padding:4px 8px;border-radius:6px;cursor:pointer;">Approve</button>`);
+                listDiv.appendChild(row);
+            });
+        } else {
+            listDiv.innerHTML = '<div style="color:var(--text-muted);text-align:center;">No other users yet.</div>';
+        }
+    } catch(e){
+        $('admin-users-list').innerHTML = '<div style="color:var(--text-muted);text-align:center;">Admin offline mode.</div>';
+    }
+}
+
+window.setUserStatus = async function(uname, status){
+    await fetch('/api/admin/update_user', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: uname, status: status})
+    });
+    loadDataAdmin();
+};
+
+function loadDataAdmin(){ loadAdminUsers(); }
+
+$('admin-goto-app-btn').addEventListener('click', () => {
+    adminContainer.classList.add('hidden');
+    appContainer.style.display = 'block';
+    initializeApp();
+});
+
+function initializeApp(){
+    wingoTypeButtons.forEach(btn=>{
+        btn.addEventListener('click', function(){
+            wingoTypeButtons.forEach(b=>b.classList.remove('active'));
+            this.classList.add('active');
+            selectedWingoType = this.dataset.type;
+            currentPeriod = ''; lastIssue = ''; latestIssueFull = null;
+            pendingPrediction = null; lastPredictionForCopy = null;
+            last10Data = []; historyNumbers = [];
+            startCountdown();
+            if(!predictionPage.classList.contains('hidden')) startPredictionCountdown();
+            fetchData();
+            showToast(`⚡ Wingo ${selectedWingoType} selected`);
+        });
+    });
+
+    optionButtons.forEach(btn=>{
+        btn.addEventListener('click', function(){
+            optionButtons.forEach(b=>b.classList.remove('active'));
+            this.classList.add('active');
+            selectedOption = this.dataset.option;
+        });
+    });
+    document.querySelector('.option-btn').classList.add('active');
+
+    serverButtons.forEach(btn=>{
+        btn.addEventListener('click', function(){
+            serverButtons.forEach(b=>b.classList.remove('active'));
+            this.classList.add('active');
+            selectedServer = this.dataset.server;
+        });
+    });
+
+    startCountdown();
+    fetchData();
+
+    confirmBtn.addEventListener('click', showPredictionPage);
+    predictionBtn.addEventListener('click', getPrediction);
+    copyBtnEl.addEventListener('click', copyPrediction);
+}
+
+function getIndianTime(){
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset()*60000);
+    return new Date(utc + (5.5*3600000));
+}
+function formatTime(d){
+    return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,timeZone:'Asia/Kolkata'});
+}
+function calculatePeriodNumber(){
+    if(latestIssueFull){ try { return (BigInt(latestIssueFull)+1n).toString(); } catch(e){} }
+    const ist=getIndianTime();
+    const h=ist.getHours(), m=ist.getMinutes();
+    let base=1000;
+    if(h>=22) base += (h-22)*60+m;
+    else      base += (h+2)*60+m;
+    return String(base);
+}
+function periodShort(full){ return full ? (full.length>5 ? full.slice(-5) : full) : '—'; }
+function calculateNextDrawTime(){
+    const n = getIndianTime();
+    const nx = new Date(n);
+    nx.setMilliseconds(0);
+    if(selectedWingoType === '30S'){
+        if(n.getSeconds() < 30) nx.setSeconds(30);
+        else { nx.setSeconds(0); nx.setMinutes(nx.getMinutes() + 1); }
+    } else {
+        nx.setSeconds(0); nx.setMinutes(nx.getMinutes() + 1);
+    }
+    return nx;
+}
+
+function startCountdown(){
+    clearInterval(countdownInterval);
+    nextDrawTime = calculateNextDrawTime();
+    countdownInterval = setInterval(()=>{
+        const now=getIndianTime();
+        const rem = nextDrawTime - now;
+        timeInfoEl.textContent = `Indian Standard Time (IST): ${formatTime(now)}`;
+        if(rem<=0){ nextDrawTime=calculateNextDrawTime(); fetchData(); }
+        else{ const s=Math.floor(rem/1000); countdownEl.textContent = `00:${String(s).padStart(2,'0')}`; }
+    },1000);
+}
+function startPredictionCountdown(){
+    clearInterval(predictionCountdownInterval);
+    nextDrawTime = calculateNextDrawTime();
+    predictionCountdownInterval = setInterval(()=>{
+        const now=getIndianTime();
+        const rem = nextDrawTime - now;
+        predictionTimeInfoEl.textContent = `Indian Standard Time (IST): ${formatTime(now)}`;
+        if(rem<=0){ nextDrawTime=calculateNextDrawTime(); fetchData(); }
+        else{ const s=Math.floor(rem/1000); predictionCountdownEl.textContent = `00:${String(s).padStart(2,'0')}`; }
+    },1000);
+}
+function showPredictionPage(){
+    optionPage.classList.add('hidden');
+    predictionPage.classList.remove('hidden');
+    currentPeriodEl.textContent = periodShort(currentPeriod);
+    startPredictionCountdown();
+}
+
+const PROXIES = [
+    u=>u,
+    u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+    u=>'https://corsproxy.io/?'+encodeURIComponent(u)
+];
+function getApiUrl(){
+    const segment = selectedWingoType === '30S' ? 'WinGo_30S' : 'WinGo_1M';
+    return `https://draw.ar-lottery01.com/WinGo/${segment}/GetHistoryIssuePage.json`;
+}
+
+async function fetchData(){
+    const directUrl = getApiUrl() + '?ts=' + Date.now();
+    let list=null;
+    for(let p of PROXIES){
+        try{
+            const r = await fetch(p(directUrl),{cache:'no-store'});
+            if(!r.ok) continue;
+            const d = await r.json();
+            const cand = d?.data?.list ?? d?.data?.gameslist ?? d?.list ?? [];
+            if(cand.length){ list=cand; break; }
+        }catch(e){}
+    }
+    if(!list){
+        last10Data = []; historyNumbers = [8,5,2,6,1,9,4,3,7,0];
+        apiStatusEl.textContent = "API: Using Standby Fallback";
+        apiStatusEl.style.color = "var(--accent-red)";
+        return;
+    }
+    const newIssue = String(list[0].issueNumber ?? list[0].issue ?? list[0].periodNumber);
+    const isNew = newIssue !== lastIssue;
+
+    last10Data = list.slice(0,10).map(item=>{
+        const n = parseInt(item.number ?? item.openCode ?? item.winNumber,10);
+        return { issue: String(item.issueNumber ?? item.issue ?? item.periodNumber).slice(-5), number: n, size: n>=5?'Big':'Small', color: (n%2===1)?'Green':'Red' };
+    });
+    historyNumbers = list.map(item=>parseInt(item.number ?? item.openCode ?? item.winNumber,10));
+    latestIssueFull = newIssue;
+    currentPeriod = calculatePeriodNumber();
+    periodNumberEl.textContent = periodShort(currentPeriod);
+    if(!predictionPage.classList.contains('hidden')) currentPeriodEl.textContent = periodShort(currentPeriod);
+
+    if(isNew){
+        if(pendingPrediction && pendingPrediction.period === newIssue){
+            settlePending(parseInt(list[0].number ?? list[0].openCode ?? list[0].winNumber,10), newIssue);
+        }
+        lastIssue = newIssue;
+    }
+    renderTable();
+    apiStatusEl.textContent = `API: Connected (${selectedWingoType})`;
+    apiStatusEl.style.color = "var(--accent-green)";
+}
+
+function renderTable(){
+    resultBody.innerHTML='';
+    last10Data.forEach(it=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `<td>${it.issue}</td><td class="${it.color.toLowerCase()}">${it.number}</td><td class="${it.size.toLowerCase()}">${it.size}</td><td>${it.color==='Green'?'💚':'❤️'}</td>`;
+        resultBody.appendChild(tr);
+    });
+}
+
+function renderBalls(n1, n2){
+    ballsRowEl.innerHTML='';
+    if(n1 == null || n2 == null) return;
+    [ {num:n1, cap:'⭐ FAVOR', cls:'fav'}, {num:n2, cap:'🔗 OPPOSITE', cls:'opp'} ].forEach(b=>{
+        const wrap = document.createElement('div');
+        wrap.className = 'ball-img-wrap';
+        const img = document.createElement('img');
+        img.className = 'ball-img';
+        img.src = BALL_IMGS[b.num] || BALL_IMGS[0];
+        wrap.innerHTML = `<img class="ball-img" src="${BALL_IMGS[b.num] || BALL_IMGS[0]}"><div class="ball-cap ${b.cls}">${b.cap}</div>`;
+        ballsRowEl.appendChild(wrap);
+    });
+}
+
+function getPrediction(){
+    if(!historyNumbers.length || !latestIssueFull){ showToast('❌ Data loading, please wait...'); return; }
+    predictionBtn.disabled = true;
+    predictionValueEl.innerHTML = '<span class="loading"></span>';
+    predictionMetaEl.textContent = '';
+    ballsRowEl.innerHTML = '';
+    copyCardEl.classList.remove('show');
+
+    setTimeout(()=>{
+        try {
+            let result;
+            const sukunaApiList = historyNumbers.map(n=>({ number: String(n) }));
+            if(selectedServer === 'mohit'){
+                const m = mohitEngine.predict(latestIssueFull, historyNumbers);
+                result = { predictedNumber:m.predictedNumber, predictedSize:m.predictedSize, n1:m.predictedNumber, n2:m.partnerNumber, balls:[m.predictedNumber, m.partnerNumber], score:m.score, server:'MOHIT', label:m.label, meta:`Trend: ${m.predictedSize}` };
+            } else if(selectedServer === 'sukuna'){
+                const s = sukunaEngine.predict(sukunaApiList);
+                result = { predictedNumber:s.predictedNumber, predictedSize:s.predictedSize, n1:s.predictedNumber, n2:s.partnerNumber, balls:[s.predictedNumber, s.partnerNumber, 8, 1], score:s.score, server:'SUKUNA', label:s.label, meta:`Ensemble ${s.score}%` };
+            } else if(selectedServer === 'shinchan'){
+                const p = shinchanEngine.predict(currentPeriod, historyNumbers);
+                result = { predictedNumber:p.predictedNumber, predictedSize:p.predictedSize, n1:p.predictedNumber, n2:p.partnerNumber, balls:[p.predictedNumber, p.partnerNumber], score:p.score, server:'SHINCHAN', label:p.label, meta:`Stable Trend v5.4` };
+            } else {
+                const k = kinggEngine.predict(historyNumbers);
+                const m = mohitEngine.predict(latestIssueFull, historyNumbers);
+                const s = sukunaEngine.predict(sukunaApiList);
+                const sc = shinchanEngine.predict(currentPeriod, historyNumbers);
+                const combo = combineHybrid(k, m, s, sc);
+                result = { predictedNumber:combo.predictedNumber, predictedSize:combo.predictedSize, n1:combo.predictedNumber, n2:combo.partnerNumber, balls:combo.balls, score:combo.score, server:'HYBRID', label:combo.label, meta:`4 Engines Fused` };
+            }
+
+            const shown = selectedOption === 'number' ? result.predictedNumber : result.predictedSize;
+            predictionValueEl.textContent = shown;
+            predictionValueEl.className = 'prediction-value ' + (selectedOption === 'number' ? (result.predictedNumber % 2 === 1 ? 'green' : 'red') : (result.predictedSize === 'BIG' ? 'big' : 'small'));
+
+            renderBalls(result.n1, result.n2);
+            predictionMetaEl.innerHTML = `<span class="mode-badge ${result.server.toLowerCase()}">${result.server}</span><br>${result.label}<br>Score: ${result.score}% · Number: ${result.predictedNumber} · Size: ${result.predictedSize}`;
+            
+            lastPredictionForCopy = { period:currentPeriod, size:result.predictedSize, number:result.predictedNumber, n1:result.n1, n2:result.n2, balls:result.balls, score:result.score, server:result.server };
+            buildCopyCard(lastPredictionForCopy);
+
+            pendingPrediction = { number:result.predictedNumber, size:result.predictedSize, period:currentPeriod, server:selectedServer };
+            predictionBtn.disabled = false;
+        } catch(e){
+            predictionBtn.disabled = false;
+            showToast('❌ Prediction error');
+        }
+    }, 800);
+}
+
+function buildBoldCopyText(p){
+    const B = toBold;
+    return [
+        `••••••••••••••••••••••••••••••••••••`,
+        `🎮 ${B('BY GAMEGURU.AI')} PRO MAX`,
+        `      ———————————--------`,
+        `${B('ISSUE')}  ➜ ${B(periodShort(p.period))}`,
+        ` ${B('TARGET')} ➜  ${B(p.size)}`,
+        `${B('NUMBERS')} ➜ ${B(String(p.n1))} , ${B(String(p.n2))}`,
+        `${B('BALLS')} ➜ ${p.balls.map(n=>B(String(n))).join('‚ ')}`,
+        `${B('SERVER')} ➜ ${B(p.server)}`,
+        `${B('CONF')} ➜ ${B(p.score + '%')}`,
+        `      ———————————---------`,
+        `🔥 ${B('GIVE REACTION FOR MORE WINNING')}`,
+        `${B('OWNER')}:-@wingoman_chat_support_bot`,
+        `•••••••••••••••••••••••••••••••••••••`
+    ].join('\n');
+}
+
+function buildCopyCard(p){
+    if(!p) return;
+    copyBodyEl.textContent = buildBoldCopyText(p);
+    copyCardEl.classList.add('show');
+}
+
+function copyPrediction(){
+    if(!lastPredictionForCopy){ showToast('❌ Get prediction first!'); return; }
+    navigator.clipboard.writeText(buildBoldCopyText(lastPredictionForCopy)).then(()=>{
+        copyBtnEl.classList.add('copied');
+        copyBtnEl.innerHTML = '<i class="fas fa-check"></i> COPIED!';
+        showToast('✅ Copied successfully!');
+        setTimeout(()=>{
+            copyBtnEl.classList.remove('copied');
+            copyBtnEl.innerHTML = '<i class="fas fa-copy"></i> COPY PREDICTION';
+        }, 1800);
+    });
+}
+
+function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(()=>toastEl.classList.remove('show'), 1800);
+}
+
+function settlePending(actualNum, settledIssue){
+    if(!pendingPrediction) return;
+    const r = kinggEngine.settle(pendingPrediction.number, pendingPrediction.size, actualNum);
+    const as = actualNum>=5?'Big':'Small';
+    lastResultEl.className = 'last-result ' + (r.win?'win':'loss');
+    lastResultEl.innerHTML = `${r.win?'✅':'❌'} Period ${periodShort(settledIssue)} · Predicted: ${pendingPrediction.number} (${pendingPrediction.size}) · Actual: ${actualNum} (${as}) · <b>${r.status}</b>`;
+    pendingPrediction = null;
+    updateStats();
+
+    // Notify backend to send Telegram Channel Sticker & Streak message
+    fetch('/api/notify_telegram', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            win: r.win,
+            period: periodShort(settledIssue),
+            predicted: pendingPrediction ? pendingPrediction.number : '',
+            actual: actualNum,
+            stats: kinggEngine.getStats()
+        })
+    }).catch(e=>{});
+}
+
+function updateStats(){
+    const s = kinggEngine.getStats();
+    $('stat-wins').textContent = s.wins;
+    $('stat-losses').textContent = s.losses;
+    $('stat-acc').textContent = s.total ? s.accuracy + '%' : '—';
+    $('stat-sw').textContent = s.consecutiveWin;
+    $('stat-sl').textContent = s.consecutiveLoss;
+    $('stat-hsw').textContent = s.highestWinStreak;
+    $('stat-hsl').textContent = s.highestLossStreak;
+    $('stat-bets').textContent = s.totalBets;
+}
+updateStats();
+</script>
+</body>
+</html>
