@@ -6,8 +6,9 @@ from telegram import Bot
 app = Flask(__name__)
 
 # Telegram Configuration (Render Environment Variables se uthayega ya aap yahan direct daal sakte hain)
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
-TELEGRAM_CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "@YOUR_CHANNEL_USERNAME")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "
+8670491836:AAGY2DH4cXy8kwFTYRDILhaL6RCOddR3VKE")
+TELEGRAM_CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "@wingomanlottery")
 
 # In-Memory Database for Users & Status
 users_db = {
