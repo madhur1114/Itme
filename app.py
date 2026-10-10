@@ -10,14 +10,13 @@ app = Flask(__name__)
 # Telegram Configuration
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 TELEGRAM_CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "@YOUR_CHANNEL_USERNAME")
-CUSTOM_STICKER_FILE_ID = os.environ.get("STICKER_FILE_ID", "YOUR_STICKER_FILE_ID_HERE")
+CUSTOM_STICKER_FILE_ID = os.environ.get("STICKER_FILE_ID", "")
 
 # In-Memory Database for Users & Status
 users_db = {
     "GAMEGURUAI145": {"password": "GAMEGURUAI145", "status": "approved", "is_admin": True}
 }
 
-# Stats tracking for streaks
 bot_stats = {
     "wins": 0, "losses": 0,
     "consecutiveWin": 0, "consecutiveLoss": 0,
@@ -72,12 +71,56 @@ def admin_update_user():
         return jsonify({"success": True})
     return jsonify({"success": False, "message": "User not found"})
 
-# 24/7 Automatic Background Prediction & Telegram Poster
+@app.route('/api/notify_telegram', methods=['POST'])
+def notify_telegram():
+    data = request.json or {}
+    win = data.get('win', False)
+    period = data.get('period', '')
+    stats = data.get('stats', {})
+    
+    global bot_stats
+    bot_stats.update(stats)
+    
+    if TELEGRAM_BOT_TOKEN != "YOUR_BOT_TOKEN_HERE":
+        try:
+            threading.Thread(target=send_telegram_sync, args=(win, period, bot_stats)).start()
+        except Exception as e:
+            print("Telegram notify error:", e)
+            
+    return jsonify({"success": True})
+
+def send_telegram_sync(win, period, stats):
+    import asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(send_telegram_update_async(win, period, stats))
+
+async def send_telegram_update_async(win, period, stats):
+    bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    try:
+        if win:
+            if CUSTOM_STICKER_FILE_ID and CUSTOM_STICKER_FILE_ID != "YOUR_STICKER_FILE_ID_HERE":
+                try:
+                    await bot.send_sticker(chat_id=TELEGRAM_CHANNEL_ID, sticker=CUSTOM_STICKER_FILE_ID)
+                except Exception as sticker_err:
+                    print("Skipping sticker due to invalid ID:", sticker_err)
+            
+            msg = (
+                f"✅ *PERIOD {period} WIN*\n\n"
+                f"🔥 *Win Streak*: {stats.get('consecutiveWin', 0)}\n"
+                f"❄️ *Loss Streak*: {stats.get('consecutiveLoss', 0)}\n"
+                f"🏆 *Highest Win Streak*: {stats.get('highestWinStreak', 0)}\n"
+                f"📊 *Accuracy*: {stats.get('accuracy', 0)}%"
+            )
+            await bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=msg, parse_mode="Markdown")
+    except Exception as e:
+        print("Telegram broadcast error:", e)
+
+# Automated Background Worker (Runs 24/7 independently)
 def automated_bot_worker():
     last_processed_issue = ""
     while True:
         try:
-            # Fetch latest lottery history from API
             res = requests.get("https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json?ts=" + str(time.time()), timeout=10)
             data = res.json()
             list_items = data.get('data', {}).get('list', [])
@@ -90,13 +133,11 @@ def automated_bot_worker():
                     last_processed_issue = current_issue
                     next_issue = str(int(current_issue) + 1)
                     
-                    # Simple robust prediction logic matching core engines
                     numbers = [int(item.get('number', 0)) for item in list_items[:10]]
                     n1 = numbers[0] if numbers else 8
                     n2 = numbers[1] if len(numbers) > 1 else 9
                     size = "BIG" if n1 >= 5 else "SMALL"
                     
-                    # Format message exactly as requested
                     b = to_bold
                     short_issue = next_issue[-5:]
                     msg = (
@@ -115,31 +156,15 @@ def automated_bot_worker():
                         f"•••••••••••••••••••••••••••••••••••••"
                     )
                     
-                    # Send to Telegram Channel via sync wrapper
                     if TELEGRAM_BOT_TOKEN != "YOUR_BOT_TOKEN_HERE":
-                        send_telegram_message_sync(msg)
+                        send_telegram_sync(True, short_issue, bot_stats)
+                        # Agar sticker bhejna ho aur ID sahi ho toh yahan bhi add kar sakte hain
         except Exception as e:
             print("Background worker error:", e)
         
-        time.sleep(30) # Check every 30 seconds
-
-def send_telegram_message_sync(text):
-    import asyncio
-    async def send():
-        bot = Bot(token=TELEGRAM_BOT_TOKEN)
-        try:
-            if CUSTOM_STICKER_FILE_ID != "YOUR_STICKER_FILE_ID_HERE":
-                await bot.send_sticker(chat_id=TELEGRAM_CHANNEL_ID, sticker=CUSTOM_STICKER_FILE_ID)
-            await bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=text, parse_mode="Markdown")
-        except Exception as e:
-            print("Telegram send error:", e)
-            
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(send())
+        time.sleep(30)
 
 if __name__ == '__main__':
-    # Start 24/7 Automated Background Bot Worker Thread
     t = threading.Thread(target=automated_bot_worker, daemon=True)
     t.start()
     
