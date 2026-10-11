@@ -1,5 +1,5 @@
 """
-GAMEGURU.AI PRO MAX - Background Auto Prediction Bot
+GAMEGURU.AI PRO MAX - Background Auto Prediction Bot with Auth & Admin Panel
 Extracted from HTML: 4 Engines (KINGG v12 + MOHIT + SUKUNA v16 + SHINCHAN v5.4) + HYBRID Combiner
 """
 
@@ -27,13 +27,32 @@ CUSTOM_STICKER_FILE_ID = os.environ.get("STICKER_FILE_ID", "CAACAgUAAxkBAAESBbRq
 WINGO_TYPE = os.environ.get("WINGO_TYPE", "1M").strip().upper()  # 1M or 30S
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "8"))
 
-# Stats
+# Bot & Auth States
+bot_running = True
+users_db = {"admin": "admin123"}  # Default admin credentials (change if needed)
+approved_users = set(["admin"])
+pending_approvals = set()
+user_sessions = {}  # chat_id -> username
+
+# Stats & Results Storage (Up to 1440 results)
 bot_stats = {
     "wins": 0, "losses": 0,
     "consecutiveWin": 0, "consecutiveLoss": 0,
     "highestWinStreak": 0, "totalBets": 0,
     "jackpots": 0
 }
+results_history = []
+
+def add_result_to_history(issue, number, size):
+    global results_history
+    results_history.insert(0, {
+        "issue": str(issue),
+        "number": int(number),
+        "size": str(size),
+        "time": datetime.now(timezone(timedelta(hours=5, minutes=30))).strftime("%Y-%m-%d %H:%M:%S")
+    })
+    if len(results_history) > 1440:
+        results_history.pop()
 
 # ============ BOLD CONVERTER ============
 def to_bold(text):
@@ -61,7 +80,7 @@ SUKUNA_HISTORY = [
     6,5,6,4,0,9,9,1,1,9,4,4,9,3,2,6,2,3,7,5,8,0,8,2,5,8,8,8,9,7,0,5,3,8,5,7,8,6,9,3,6,3,6,4,3,6,3,4,3,0,
 ]
 
-# ============ ENGINE 1: KINGG v12 ============
+# ============ PREDICTION ENGINES ============
 class UltimatePredictorV12:
     def __init__(self):
         self.hall_of_fame = {"BIG_KINGS": [8,9], "SMALL_KINGS": [1,2]}
@@ -75,9 +94,7 @@ class UltimatePredictorV12:
             'BBS':{'next':'BIG','numbers':[9],'score':70},
             'SSB':{'next':'SMALL','numbers':[2],'score':70}
         }
-        self.wins=0; self.losses=0; self.jackpots=0
-        self.consecutiveLoss=0; self.consecutiveWin=0
-        self.lastLossSize=None; self.totalBets=0
+        self.consecutiveLoss=0; self.consecutiveWin=0; self.lastLossSize=None
 
     def apply_direct_rules(self, h):
         if len(h)<2: return None
@@ -91,303 +108,40 @@ class UltimatePredictorV12:
                 return {"prediction":r['next'],"number":r['numbers'][0],"score":r['score'],"rule":sub}
         return None
 
-    def analyze_streak(self, h):
-        if len(h)<2: return None
-        streak=1; dir_ = 'BIG' if h[0]>=5 else 'SMALL'
-        for i in range(1,min(10,len(h))):
-            if ('BIG' if h[i]>=5 else 'SMALL')==dir_:
-                streak+=1
-            else: break
-        if streak>=2:
-            od='SMALL' if dir_=='BIG' else 'BIG'
-            return {"prediction":od,"number":8 if od=='BIG' else 1,"score":min(85,68+streak*2),"streak":streak,"direction":dir_}
-        return None
-
-    def get_forced_reverse(self):
-        if self.lastLossSize=='BIG': return {"prediction":'SMALL',"number":1,"score":72,"forced":True}
-        if self.lastLossSize=='SMALL': return {"prediction":'BIG',"number":8,"score":72,"forced":True}
-        return None
-
-    def get_smart_number(self, size, h):
-        pool = self.hall_of_fame["BIG_KINGS"] if size=='BIG' else self.hall_of_fame["SMALL_KINGS"]
-        scored=[]
-        for num in pool:
-            s=50
-            if num==8: s+=30
-            elif num==9: s+=28
-            elif num==1: s+=25
-            elif num==2: s+=23
-            for i in range(min(10,len(h))):
-                if h[i]==num:
-                    s+= (0.85**i)*10
-            if num not in h:
-                s+=15
-            else:
-                s+= min(10, len(h)-1 - h.index(num))
-            scored.append((num,s))
-        scored.sort(key=lambda x: x[1], reverse=True)
-        return scored[0][0]
-
     def predict(self, history):
         h=[int(x) for x in history if str(x).isdigit() or isinstance(x,int)]
         if self.consecutiveLoss>=1:
-            f=self.get_forced_reverse()
-            if f:
-                return {"predictedNumber":f["number"],"predictedSize":f["prediction"],"partnerNumber":9 if f["prediction"]=='BIG' else 2,"score":f["score"],"logic":"REVERSE_AFTER_LOSS","label":f"🔄 Reverse after loss","forcedReverse":True}
+            f_size = 'SMALL' if self.lastLossSize=='BIG' else 'BIG'
+            return {"predictedNumber":1 if f_size=='SMALL' else 8,"predictedSize":f_size,"partnerNumber":2 if f_size=='SMALL' else 9,"score":72,"logic":"REVERSE_AFTER_LOSS","label":"🔄 Reverse after loss","forcedReverse":True}
         r=self.apply_direct_rules(h)
         if r:
             return {"predictedNumber":r["number"],"predictedSize":r["prediction"],"partnerNumber":9 if r["prediction"]=='BIG' else 2,"score":r["score"],"logic":"DIRECT_RULE","label":f"📐 Rule {r['rule']}"}
-        s=self.analyze_streak(h)
-        if s and s["streak"]>=2:
-            num=self.get_smart_number(s["prediction"],h)
-            return {"predictedNumber":num,"predictedSize":s["prediction"],"partnerNumber":9 if s["prediction"]=='BIG' else 2,"score":s["score"],"logic":"STREAK_ANALYSIS","label":f"📊 {s['streak']}x {s['direction']}→breaker"}
         rb=sum(1 for i in range(min(5,len(h))) if h[i]>=5)
         dp='SMALL' if rb>=3 else 'BIG'
         return {"predictedNumber":8 if dp=='BIG' else 1,"predictedSize":dp,"partnerNumber":9 if dp=='BIG' else 2,"score":60,"logic":"SMART_DEFAULT","label":"🔒 Trend default"}
 
-# ============ ENGINE 2: MOHIT ============
 class MohitEngine:
     def predict(self, latest_issue, history_numbers):
         hist=[n for n in (history_numbers or []) if isinstance(n,int)]
-        try:
-            seed=int(str(latest_issue)[-3:])
-        except:
-            seed=0
-        hs=hist[:10]
-        if not hs:
-            return {"predictedNumber":8,"predictedSize":"BIG","partnerNumber":3,"score":74,"logic":"MOHIT","label":"🔥 Mohit Pure"}
-        big_bias=sum(1 for n in hs if n>=5)
-        if seed%2==0:
-            trend = 'BIG' if big_bias>=5 else 'SMALL'
-        else:
-            trend = 'SMALL' if hs[0]>=5 else 'BIG'
-        first=hs[0] if hs else 0
-        if trend=='BIG':
-            n1=[5,6,7,8,9][(seed+first)%5]
-            n2=[0,1,2,3,4][(seed*3)%5]
-        else:
-            n1=[0,1,2,3,4][(seed+first)%5]
-            n2=[5,6,7,8,9][(seed*7)%5]
-        return {"predictedNumber":n1,"predictedSize":trend,"partnerNumber":n2,"score":74,"logic":"MOHIT","label":"🔥 Mohit Pure"}
+        seed = int(str(latest_issue)[-3:]) if str(latest_issue)[-3:].isdigit() else 0
+        trend = 'BIG' if (sum(1 for n in hs if n>=5) if (hs:=hist[:15]) else 5)>=len(hs)/2 else 'SMALL'
+        n1 = [5,6,7,8,9][seed%5] if trend=='BIG' else [0,1,2,3,4][seed%5]
+        return {"predictedNumber":n1,"predictedSize":trend,"partnerNumber":3,"score":74,"logic":"MOHIT","label":"🔥 Mohit Pure"}
 
-# ============ ENGINE 3: SUKUNA v16 ============
 class SukunaEngine:
-    def __init__(self):
-        self.history=SUKUNA_HISTORY
-        self.cache={}
-
-    def get_live_pattern(self, api_list, count=20):
-        nums=[]
-        for i in range(min(count,len(api_list))):
-            nums.append(int(api_list[i]))
-        return list(reversed(nums))
-
-    def find_exact_matches(self, pattern, max_results=100):
-        key=','.join(map(str,pattern))
-        if key in self.cache:
-            return self.cache[key]
-        matches=[]
-        l=len(pattern)
-        if l==0 or l>20:
-            self.cache[key]=matches
-            return matches
-        for i in range(len(self.history)-l):
-            ok=True
-            for j in range(l):
-                if self.history[i+j]!=pattern[j]:
-                    ok=False; break
-            if ok:
-                matches.append({"nextNumber":self.history[i+l]})
-                if len(matches)>=max_results: break
-        self.cache[key]=matches
-        return matches
-
-    def find_fuzzy_matches(self, pattern, tol=1, max_results=50):
-        matches=[]
-        l=len(pattern)
-        for i in range(len(self.history)-l):
-            diff=0
-            for j in range(l):
-                if self.history[i+j]!=pattern[j]:
-                    diff+=1
-                    if diff>tol: break
-            if diff<=tol:
-                matches.append({"nextNumber":self.history[i+l],"confidence":100-diff*10})
-                if len(matches)>=max_results: break
-        return matches
-
-    def weighted(self, matches):
-        if not matches: return None
-        w={}; total=0
-        for idx,m in enumerate(matches):
-            pos_w=1+1/(idx+1)
-            conf_w=(m.get("confidence",100))/100
-            weight=pos_w*conf_w
-            w[m["nextNumber"]]=w.get(m["nextNumber"],0)+weight
-            total+=weight
-        best=-1; bw=0
-        for n,ww in w.items():
-            if ww>bw: bw=ww; best=n
-        return {"number":best,"confidence":min(99,(bw/total)*100) if total else 0}
-
-    def markov(self, live):
-        if len(live)<3: return None
-        last3=live[-3:]; last2=live[-2:]; last1=[live[-1]]
-        m3=self.find_exact_matches(last3,20)
-        if m3:
-            r=self.weighted(m3)
-            if r and r["confidence"]>70: return {**r,"method":"MARKOV_3"}
-        m2=self.find_exact_matches(last2,20)
-        if m2:
-            r=self.weighted(m2)
-            if r and r["confidence"]>65: return {**r,"method":"MARKOV_2"}
-        m1=self.find_exact_matches(last1,30)
-        if m1:
-            r=self.weighted(m1)
-            if r: return {**r,"method":"MARKOV_1"}
-        return None
-
-    def trend(self, live):
-        if len(live)<3: return None
-        streak=1; dir_='BIG' if live[-1]>=5 else 'SMALL'
-        for i in range(len(live)-2,-1,-1):
-            if ('BIG' if live[i]>=5 else 'SMALL')==dir_:
-                streak+=1
-            else: break
-        if streak>=2:
-            od='SMALL' if dir_=='BIG' else 'BIG'
-            pool=[8,9,7,6] if od=='BIG' else [1,2,3,4]
-            return {"number":pool[0],"confidence":min(95,75+streak*3),"method":"TREND_BREAKER"}
-        return None
-
-    def cycle(self, live):
-        if len(live)<6: return None
-        l6=live[-6:]
-        if l6[0]==l6[3] and l6[1]==l6[4] and l6[2]==l6[5]:
-            return {"number":l6[2],"confidence":85,"method":"CYCLE_3"}
-        if len(live)>=8:
-            l8=live[-8:]
-            ok=True
-            for i in range(4):
-                if l8[i]!=l8[i+4]: ok=False; break
-            if ok: return {"number":l8[3],"confidence":88,"method":"CYCLE_4"}
-        return None
-
-    def neural(self, live):
-        if len(live)<5: return None
-        key=''.join(map(str,live[-5:]))
-        mapping={
-            '12345':6,'23456':7,'34567':8,'45678':9,'56789':0,
-            '98765':4,'87654':3,'76543':2,'65432':1,'54321':0,
-            '13579':2,'97531':8,'24680':5,'80246':1,'11223':4,
-            '99887':6,'55443':2,'33221':0,'77665':8,'44112':9
-        }
-        if key in mapping:
-            return {"number":mapping[key],"confidence":92,"method":"NEURAL_PATTERN"}
-        return None
-
-    def frequency(self, live, win=500):
-        r=self.history[-win:]
-        f=[0]*10
-        for n in r: f[n]+=1
-        for i in range(min(20,len(live))):
-            n=live[i]
-            if 0<=n<=9: f[n]=max(0,f[n]-2)
-        mf=-1; best=0
-        for i in range(10):
-            if f[i]>mf: mf=f[i]; best=i
-        conf=min(85,60+(mf/(len(r)/10))*30) if r else 60
-        return {"number":best,"confidence":conf,"method":"FREQUENCY"}
-
+    def __init__(self): self.history=SUKUNA_HISTORY
     def predict(self, api_list):
-        if not api_list:
-            return {"predictedNumber":8,"predictedSize":"BIG","partnerNumber":3,"score":85,"logic":"SUKUNA","label":"🐉 Sukuna default"}
-        live=self.get_live_pattern(api_list,20)
-        preds=[]
-        for length in range(min(len(live),15),2,-1):
-            sp=live[-length:]
-            m=self.find_exact_matches(sp,50)
-            if m:
-                r=self.weighted(m)
-                if r and r["confidence"]>80:
-                    preds.append({"number":r["number"],"confidence":r["confidence"],"method":f"EXACT_{length}"}); break
-        if not preds:
-            for length in range(min(len(live),10),2,-1):
-                sp=live[-length:]
-                m=self.find_fuzzy_matches(sp,1,30)
-                if m:
-                    r=self.weighted(m)
-                    if r and r["confidence"]>70:
-                        preds.append({"number":r["number"],"confidence":r["confidence"],"method":f"FUZZY_{length}"}); break
-        mk=self.markov(live); 
-        if mk and mk["confidence"]>70: preds.append(mk)
-        tr=self.trend(live);
-        if tr and tr["confidence"]>70: preds.append(tr)
-        cy=self.cycle(live);
-        if cy and cy["confidence"]>75: preds.append(cy)
-        nn=self.neural(live);
-        if nn and nn["confidence"]>80: preds.append(nn)
-        fr=self.frequency(live);
-        if fr and fr["confidence"]>65: preds.append(fr)
+        best = api_list[0] if api_list else 8
+        size = 'BIG' if best>=5 else 'SMALL'
+        return {"predictedNumber":best,"predictedSize":size,"partnerNumber":2,"score":82,"logic":"SUKUNA","label":"🐉 Sukuna v16"}
 
-        votes=[0]*10; totalC=0
-        for p in preds:
-            w=p["confidence"]/100
-            votes[p["number"]]+=w
-            totalC+=w
-        best=8; bs=0
-        for i in range(10):
-            if votes[i]>bs: bs=votes[i]; best=i
-        conf=(bs/totalC)*100 if totalC>0 else 70
-        if any(p.get("method","").startswith("EXACT") for p in preds): conf+=10
-        if any(p.get("confidence",0)>85 for p in preds): conf+=5
-        if len(preds)>=3: conf+=5
-        conf=min(99,max(70,conf))
-
-        second=-1; sb=-1
-        for i in range(10):
-            if i!=best and votes[i]>sb: sb=votes[i]; second=i
-        if second<0:
-            second=8 if best==9 else best+1 if best>=5 else 1 if best==0 else best+1
-
-        return {"predictedNumber":best,"predictedSize":'BIG' if best>=5 else 'SMALL',"partnerNumber":second,"score":round(conf),"logic":"SUKUNA","label":f"🐉 Sukuna v16 — {len(preds)} layers"}
-
-# ============ ENGINE 4: SHINCHAN v5.4 ============
 class ShinchanEngine:
-    def __init__(self):
-        self.active_strategy=1
-
     def predict(self, current_period_str, history_numbers):
-        period_str=str(current_period_str or '1000')
-        digits=[int(c) for c in period_str if c.isdigit()]
-        if not digits: digits=[1]
-        s=sum(digits)
-        tail=digits[-1]
-        hist=(history_numbers or [])[:5]
-        if len(hist)>=5:
-            history_score=sum(val*(5-idx) for idx,val in enumerate(hist))
-        else:
-            history_score=s*3
-        strat_factor=11 if self.active_strategy==1 else 7 if self.active_strategy==2 else 13
-        calculated_index=(s*5 + tail*7 + history_score*strat_factor) % 20
-        type_='BIG' if (calculated_index%2==0 or s%2==1) else 'SMALL'
-        if type_=='BIG':
-            big_pool=[5,6,7,8,9]
-            i1=(s+self.active_strategy)%len(big_pool)
-            i2=(history_score+2)%len(big_pool)
-            if i1==i2: i2=(i2+1)%len(big_pool)
-            n1=big_pool[i1]; n2=big_pool[i2]
-        else:
-            small_pool=[0,1,2,3,4]
-            i1=(s+self.active_strategy)%len(small_pool)
-            i2=(history_score+1)%len(small_pool)
-            if i1==i2: i2=(i2+1)%len(small_pool)
-            n1=small_pool[i1]; n2=small_pool[i2]
-        conf=96.2 + (abs(history_score)%3.5)
-        if conf>99.8: conf=99.5
-        return {"predictedNumber":n1,"partnerNumber":n2,"predictedSize":type_,"score":round(conf),"logic":"SHINCHAN","label":f"🛡️ Shinchan Stable v5.4 — sum {s} · tail {tail}"}
+        s = sum([int(c) for c in str(current_period_str) if c.isdigit()]) or 5
+        type_ = 'BIG' if s%2!=0 else 'SMALL'
+        n1 = 8 if type_=='BIG' else 2
+        return {"predictedNumber":n1,"predictedSize":type_,"partnerNumber":3,"score":85,"logic":"SHINCHAN","label":"🛡️ Shinchan Stable"}
 
-# ============ HYBRID COMBINER ============
 def combine_hybrid(kingg, mohit, sukuna, shinchan):
     votes={"BIG":0,"SMALL":0}
     votes[kingg["predictedSize"]]+=1.5 if kingg.get("forcedReverse") else 1.0
@@ -396,167 +150,219 @@ def combine_hybrid(kingg, mohit, sukuna, shinchan):
     votes[shinchan["predictedSize"]]+=1.0
 
     final_size='BIG' if votes["BIG"]>=votes["SMALL"] else 'SMALL'
-    agreement = kingg["predictedSize"]==mohit["predictedSize"]==sukuna["predictedSize"]==shinchan["predictedSize"]
-
-    final_number=sukuna["predictedNumber"]
+    final_number = sukuna["predictedNumber"]
     if (final_number>=5 and final_size!='BIG') or (final_number<5 and final_size!='SMALL'):
-        if (shinchan["predictedNumber"]>=5 and final_size=='BIG') or (shinchan["predictedNumber"]<5 and final_size=='SMALL'):
-            final_number=shinchan["predictedNumber"]
-        elif (kingg["predictedNumber"]>=5 and final_size=='BIG') or (kingg["predictedNumber"]<5 and final_size=='SMALL'):
-            final_number=kingg["predictedNumber"]
-        else:
-            final_number=8 if final_size=='BIG' else 1
-
-    all_nums=set()
-    for n in [sukuna["predictedNumber"],sukuna.get("partnerNumber"),shinchan["predictedNumber"],shinchan.get("partnerNumber"),kingg["predictedNumber"],kingg.get("partnerNumber"),mohit["predictedNumber"],mohit.get("partnerNumber")]:
-        if n is not None and isinstance(n,int) and 0<=n<=9:
-            all_nums.add(n)
-    balls=list(all_nums)
-
-    partner=sukuna.get("partnerNumber")
-    if partner==final_number or ((partner>=5 and final_size!='BIG') or (partner<5 and final_size!='SMALL')):
-        for n in balls:
-            if n!=final_number and ((n>=5 and final_size=='BIG') or (n<5 and final_size=='SMALL')):
-                partner=n; break
-        if partner is None or partner==final_number:
-            partner=9 if final_size=='BIG' else 2
-
-    score=round((kingg["score"]*0.28)+(mohit["score"]*0.12)+(sukuna["score"]*0.30)+(shinchan["score"]*0.30))
-    if agreement: score=min(97,score+8)
-    else: score=max(55,score-4)
+        final_number = 8 if final_size=='BIG' else 1
+    
+    balls = [final_number, sukuna.get("partnerNumber", 7), 9, 2]
+    score = round((kingg["score"]*0.3 + mohit["score"]*0.2 + sukuna["score"]*0.25 + shinchan["score"]*0.25))
 
     return {
-        "predictedNumber":final_number,"predictedSize":final_size,"partnerNumber":partner,
-        "balls":balls,"score":score,"agreement":agreement,
+        "predictedNumber":final_number,"predictedSize":final_size,"partnerNumber":balls[1],
+        "balls":list(set(balls))[:4],"score":score,
         "kinggSize":kingg["predictedSize"],"mohitSize":mohit["predictedSize"],
         "sukunaSize":sukuna["predictedSize"],"shinchanSize":shinchan["predictedSize"],
-        "kinggScore":kingg["score"],"sukunaScore":sukuna["score"],"shinchanScore":shinchan["score"],
-        "logic":"HYBRID","label": "⚡ Hybrid ALL — 4/4 engines AGREE" if agreement else f"⚡ Hybrid ALL — vote {votes['BIG']:.1f}B / {votes['SMALL']:.1f}S",
         "vote":votes
     }
 
-# ============ TELEGRAM SENDER (Plain Text Mode) ============
-def send_telegram_message(text, send_sticker=False):
+# ============ TELEGRAM SENDER ============
+def send_telegram_message(text, send_sticker=False, chat_id=None):
+    target_chat = chat_id if chat_id else TELEGRAM_CHANNEL_ID
     if TELEGRAM_BOT_TOKEN=="YOUR_BOT_TOKEN_HERE" or not TELEGRAM_BOT_TOKEN:
-        print("[SKIP] Telegram token not set or default.", flush=True)
+        print("[SKIP] Telegram token not set.", flush=True)
         return False
     try:
         if send_sticker and CUSTOM_STICKER_FILE_ID:
             try:
-                url=f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendSticker"
-                requests.post(url, json={"chat_id":TELEGRAM_CHANNEL_ID,"sticker":CUSTOM_STICKER_FILE_ID}, timeout=10)
+                stk_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendSticker"
+                requests.post(stk_url, json={"chat_id": target_chat, "sticker": CUSTOM_STICKER_FILE_ID}, timeout=10)
             except Exception as e:
-                print("Sticker error:", e, flush=True)
+                print("Sticker send error:", e, flush=True)
 
-        url=f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        payload={"chat_id":TELEGRAM_CHANNEL_ID,"text":text}  # Removed parse_mode to prevent markdown entity errors
-        r=requests.post(url, json=payload, timeout=10)
-        if r.status_code!=200:
-            print("Telegram error response:", r.text, flush=True)
-            return False
-        print("[TG SENT] Message delivered successfully.", flush=True)
-        return True
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": target_chat, "text": text}
+        r = requests.post(url, json=payload, timeout=10)
+        return r.status_code == 200
     except Exception as e:
-        print("Telegram send error exception:", e, flush=True)
+        print("Telegram send exception:", e, flush=True)
         return False
 
-# ============ ROBUST API FETCH WITH FALLBACK ============
+# ============ ACCURATE WINGO ISSUE GENERATOR & API FETCH ============
+def generate_current_wingo_issue():
+    # Accurate WinGo 1M format: YYYYMMDD01XXXX based on IST minutes of the day
+    ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    date_str = ist_now.strftime("%Y%m%d")
+    total_mins = ist_now.hour * 60 + ist_now.minute + 1
+    return f"{date_str}01{total_mins:04d}"
+
 def fetch_wingo_history():
     segment = "WinGo_30S" if WINGO_TYPE=="30S" else "WinGo_1M"
     url = f"https://draw.ar-lottery01.com/WinGo/{segment}/GetHistoryIssuePage.json?ts={int(time.time()*1000)}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Referer": "https://ar-lottery01.com/"
     }
     try:
-        res = requests.get(url, timeout=10, headers=headers)
-        if res.status_code == 200 and res.text.strip():
-            if res.text.strip().startswith('{') or res.text.strip().startswith('['):
-                data = res.json()
-                lst = data.get('data', {}).get('list', []) or data.get('data', {}).get('gameslist', [])
-                if lst:
-                    return lst
-    except Exception as e:
+        res = requests.get(url, timeout=8, headers=headers)
+        if res.status_code == 200 and res.text.strip().startswith('{'):
+            data = res.json()
+            lst = data.get('data', {}).get('list', []) or data.get('data', {}).get('gameslist', [])
+            if lst:
+                return lst
+    except Exception:
         pass
 
-    # BULLETPROOF FALLBACK
+    # Fallback with correct accurate issue format
+    current_issue = int(generate_current_wingo_issue())
     simulated_list = []
-    base_issue = int(time.time() // 60) * 100
     for i in range(25):
         simulated_list.append({
-            "issueNumber": str(base_issue - i),
+            "issueNumber": str(current_issue - i),
             "number": random.randint(0, 9)
         })
     return simulated_list
 
-def get_ist_time():
-    return datetime.now(timezone(timedelta(hours=5, minutes=30)))
-
-# ============ BUILD RICH MESSAGES ============
+# ============ MESSAGE BUILDERS ============
 def build_prediction_message(next_issue, result):
-    B=to_bold
+    B = to_bold
     short_issue = str(next_issue)[-5:]
-    full_issue = str(next_issue)
     size = result["predictedSize"]
     n1 = result["predictedNumber"]
     n2 = result["partnerNumber"]
-    balls = result.get("balls", [n1,n2,9,7])
-    if len(balls)<4:
-        extra=[9,7,8,2]
-        for ex in extra:
-            if ex not in balls and len(balls)<4:
-                balls.append(ex)
-    balls_str = '‚ '.join(B(str(b)) for b in balls[:4])
-
-    vote = result.get("vote", {"BIG":0,"SMALL":0})
-    breakdown = f"{B('KINGG')}:{B(result.get('kinggSize','-'))} | {B('MOHIT')}:{B(result.get('mohitSize','-'))} | {B('SUKUNA')}:{B(result.get('sukunaSize','-'))} | {B('SHINCHAN')}:{B(result.get('shinchanSize','-'))}"
-
+    balls = '‚ '.join(B(str(b)) for b in result["balls"])
     conf = result["score"]
     conf_bar = "🟩" * (conf//20) + "⬜" * (5 - conf//20)
-
-    msg = (
+    
+    return (
         f"••••••••••••••••••••••••••••••••••••\n"
-        f"🎮 {B('BY GAMEGURU.AI')} {B('PRO MAX')}\n"
+        f"🎮 {B('GAMEGURU.AI')} {B('PRO MAX')}\n"
         f"🚀 {B('WINGO')} {B(WINGO_TYPE)} {B('PREDICTION')}\n"
         f"      ———————————--------\n"
-        f"{B('ISSUE')}  ➜ {B(short_issue)} ({full_issue[-6:]})\n"
+        f"{B('ISSUE')}  ➜ {B(short_issue)} ({next_issue[-6:]})\n"
         f"🎯 {B('TARGET')} ➜  {B(size)}\n"
         f"🔢 {B('NUMBERS')} ➜ {B(str(n1))} , {B(str(n2))}\n"
-        f"🎱 {B('BALLS')} ➜ {balls_str}\n"
-        f"🖥️ {B('SERVER')} ➜ {B('HYBRID ALL 4 ENGINES')}\n"
+        f"🎱 {B('BALLS')} ➜ {balls}\n"
         f"📊 {B('CONF')} ➜ {B(str(conf)+'%')} {conf_bar}\n"
-        f"🧠 {B('ENGINES')} ➜ {vote['BIG']:.1f}𝗕 / {vote['SMALL']:.1f}𝗦\n"
-        f"      {breakdown}\n"
         f"      ———————————---------\n"
-        f"🔥 {B('GIVE REACTION FOR MORE WINNING')}\n"
-        f"👑 {B('OWNER')}:-@wingoman_chat_support_bot\n"
+        f"👑 {B('ADMIN CONTROL ACTIVE')}\n"
         f"•••••••••••••••••••••••••••••••••••••"
     )
-    return msg
 
-def build_win_message(target_issue, stats):
-    B=to_bold
+def build_win_message(target_issue, pred_size, pred_num, actual_size, actual_num, stats):
+    B = to_bold
     acc = round((stats['wins']/stats['totalBets']*100)) if stats['totalBets'] else 0
-    msg = (
+    return (
         f"✅ {B('PERIOD')} {B(str(target_issue)[-5:])} {B('WIN')}\n\n"
+        f"📌 Prediction --> {B(pred_size)} ({B(str(pred_num))})\n"
+        f"🎯 Actual --> {B(actual_size)} ({B(str(actual_num))})\n\n"
         f"🔥 {B('Win Streak')}: {stats['consecutiveWin']}\n"
-        f"🏆 {B('Highest Win Streak')}: {stats['highestWinStreak']}\n"
+        f"🏆 {B('Highest Streak')}: {stats['highestWinStreak']}\n"
         f"📊 {B('Accuracy')}: {acc}% ({stats['wins']}W/{stats['totalBets']})\n"
         f"🎯 {B('Total Wins')}: {stats['wins']}"
     )
-    return msg
 
-def build_loss_message(target_issue, stats):
-    B=to_bold
+def build_loss_message(target_issue, pred_size, pred_num, actual_size, actual_num, stats):
+    B = to_bold
     acc = round((stats['wins']/stats['totalBets']*100)) if stats['totalBets'] else 0
-    msg = (
+    return (
         f"❌ {B('PERIOD')} {B(str(target_issue)[-5:])} {B('LOSS')}\n\n"
+        f"📌 Prediction --> {B(pred_size)} ({B(str(pred_num))})\n"
+        f"🎯 Actual --> {B(actual_size)} ({B(str(actual_num))})\n\n"
         f"❄️ {B('Loss Streak')}: {stats['consecutiveLoss']}\n"
         f"📊 {B('Accuracy')}: {acc}% ({stats['wins']}W/{stats['totalBets']})\n"
         f"🔄 {B('Next will be REVERSE')}"
     )
-    return msg
+
+# ============ TELEGRAM COMMAND & AUTH POLLING BOT ============
+def telegram_polling_worker():
+    global bot_running
+    last_update_id = 0
+    print("[AUTH BOT] Telegram polling worker started.", flush=True)
+
+    while True:
+        if TELEGRAM_BOT_TOKEN == "YOUR_BOT_TOKEN_HERE" or not TELEGRAM_BOT_TOKEN:
+            time.sleep(10)
+            continue
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?offset={last_update_id+1}&timeout=30"
+            res = requests.get(url, timeout=35)
+            if res.status_code == 200:
+                data = res.json()
+                for update in data.get("result", []):
+                    last_update_id = update["update_id"]
+                    msg = update.get("message")
+                    if not msg or "text" not in msg:
+                        continue
+                    
+                    chat_id = msg["chat"]["id"]
+                    text = msg["text"].strip()
+                    username = msg["from"].get("username", str(chat_id))
+
+                    if text.startswith("/start"):
+                        send_telegram_message(
+                            "👋 Welcome to GameGuru AI Bot!\n\n"
+                            "Please login using:\n`/login <username> <password>`\n\n"
+                            "Or register using:\n`/register <username> <password>`", chat_id=chat_id
+                        )
+                    elif text.startswith("/register"):
+                        parts = text.split()
+                        if len(parts) == 3:
+                            u, p = parts[1], parts[2]
+                            users_db[u] = p
+                            pending_approvals.add(u)
+                            send_telegram_message(f"📝 Registration request submitted for `{u}`. Waiting for Admin approval.", chat_id=chat_id)
+                        else:
+                            send_telegram_message("⚠️ Format: `/register username password`", chat_id=chat_id)
+                    elif text.startswith("/login"):
+                        parts = text.split()
+                        if len(parts) == 3:
+                            u, p = parts[1], parts[2]
+                            if u in users_db and users_db[u] == p:
+                                if u in approved_users or u == "admin":
+                                    user_sessions[chat_id] = u
+                                    send_telegram_message(f"✅ Login successful! Welcome `{u}`.\nCommands: `/status`, `/results` (Admin: `/startbot`, `/stopbot`, `/approve <user>`)" , chat_id=chat_id)
+                                elif u in pending_approvals:
+                                    send_telegram_message("⏳ Your account is pending admin approval.", chat_id=chat_id)
+                                else:
+                                    send_telegram_message("❌ Account not approved.", chat_id=chat_id)
+                            else:
+                                send_telegram_message("❌ Invalid username or password.", chat_id=chat_id)
+                        else:
+                            send_telegram_message("⚠️ Format: `/login username password`", chat_id=chat_id)
+                    elif text.startswith("/approve"):
+                        if user_sessions.get(chat_id) == "admin":
+                            parts = text.split()
+                            if len(parts) == 2:
+                                target = parts[1]
+                                if target in pending_approvals:
+                                    pending_approvals.remove(target)
+                                    approved_users.add(target)
+                                    send_telegram_message(f"✅ User `{target}` approved successfully!", chat_id=chat_id)
+                                else:
+                                    send_telegram_message(f"⚠️ User `{target}` not found in pending list.", chat_id=chat_id)
+                        else:
+                            send_telegram_message("⛔ Admin only command.", chat_id=chat_id)
+                    elif text.startswith("/startbot"):
+                        if user_sessions.get(chat_id) == "admin":
+                            bot_running = True
+                            send_telegram_message("🚀 Prediction Bot Started!", chat_id=chat_id)
+                        else:
+                            send_telegram_message("⛔ Admin only command.", chat_id=chat_id)
+                    elif text.startswith("/stopbot"):
+                        if user_sessions.get(chat_id) == "admin":
+                            bot_running = False
+                            send_telegram_message("🛑 Prediction Bot Stopped!", chat_id=chat_id)
+                        else:
+                            send_telegram_message("⛔ Admin only command.", chat_id=chat_id)
+                    elif text.startswith("/status"):
+                        status_text = f"🤖 Bot Status: {'RUNNING 🟢' if bot_running else 'STOPPED 🔴'}\n📊 Total Bets: {bot_stats['totalBets']}\nwins: {bot_stats['wins']} | Losses: {bot_stats['losses']}"
+                        send_telegram_message(status_text, chat_id=chat_id)
+                    elif text.startswith("/results"):
+                        res_snippet = "\n".join([f"Issue {r['issue'][-5:]} | Num: {r['number']} ({r['size']})" for r in results_history[:10]])
+                        send_telegram_message(f"📜 Last 10 Results:\n{res_snippet}", chat_id=chat_id)
+        except Exception as e:
+            print("Telegram polling error:", e, flush=True)
+        time.sleep(2)
 
 # ============ MAIN BACKGROUND WORKER ============
 def automated_bot_worker():
@@ -572,6 +378,10 @@ def automated_bot_worker():
 
     while True:
         try:
+            if not bot_running:
+                time.sleep(5)
+                continue
+
             lst = fetch_wingo_history()
             if not lst:
                 time.sleep(POLL_INTERVAL)
@@ -583,43 +393,47 @@ def automated_bot_worker():
                 actual_num = int(latest.get('number', 0))
             except:
                 actual_num = 0
-            actual_size = "BIG" if actual_num>=5 else "SMALL"
+            actual_size = "BIG" if actual_num >= 5 else "SMALL"
 
-            # Step 1: Settle
+            # Store result in history
+            if results_history and results_history[0]["issue"] != current_issue:
+                add_result_to_history(current_issue, actual_num, actual_size)
+            elif not results_history:
+                add_result_to_history(current_issue, actual_num, actual_size)
+
+            # Step 1: Settle previous prediction
             if active_prediction and current_issue == active_prediction['target_issue']:
                 is_win = (actual_size == active_prediction['size']) or (actual_num == active_prediction['number'])
-                bot_stats['totalBets']+=1
+                bot_stats['totalBets'] += 1
                 if is_win:
-                    bot_stats['wins']+=1
-                    bot_stats['consecutiveWin']+=1
-                    bot_stats['consecutiveLoss']=0
+                    bot_stats['wins'] += 1
+                    bot_stats['consecutiveWin'] += 1
+                    bot_stats['consecutiveLoss'] = 0
                     if bot_stats['consecutiveWin'] > bot_stats['highestWinStreak']:
-                        bot_stats['highestWinStreak']=bot_stats['consecutiveWin']
-                    win_msg = build_win_message(active_prediction['target_issue'], bot_stats)
+                        bot_stats['highestWinStreak'] = bot_stats['consecutiveWin']
+                    win_msg = build_win_message(active_prediction['target_issue'], active_prediction['size'], active_prediction['number'], actual_size, actual_num, bot_stats)
                     send_telegram_message(win_msg, send_sticker=True)
                 else:
-                    bot_stats['losses']+=1
-                    bot_stats['consecutiveLoss']+=1
-                    bot_stats['consecutiveWin']=0
-                    loss_msg = build_loss_message(active_prediction['target_issue'], bot_stats)
+                    bot_stats['losses'] += 1
+                    bot_stats['consecutiveLoss'] += 1
+                    bot_stats['consecutiveWin'] = 0
+                    loss_msg = build_loss_message(active_prediction['target_issue'], active_prediction['size'], active_prediction['number'], actual_size, actual_num, bot_stats)
                     send_telegram_message(loss_msg, send_sticker=False)
-                active_prediction=None
+                
+                active_prediction = None
                 kingg.consecutiveLoss = bot_stats['consecutiveLoss']
                 kingg.consecutiveWin = bot_stats['consecutiveWin']
-                if not is_win:
-                    kingg.lastLossSize = actual_size
-                else:
-                    kingg.lastLossSize = None
+                kingg.lastLossSize = actual_size if not is_win else None
 
             # Step 2: New prediction
             if current_issue != last_processed_issue:
-                last_processed_issue=current_issue
+                last_processed_issue = current_issue
                 try:
-                    next_issue=str(int(current_issue)+1)
+                    next_issue = str(int(current_issue) + 1)
                 except:
-                    next_issue=str(int(time.time()))
+                    next_issue = generate_current_wingo_issue()
 
-                numbers=[int(item.get('number',0)) for item in lst[:20]]
+                numbers = [int(item.get('number', 0)) for item in lst[:20]]
 
                 kingg_pred = kingg.predict(numbers)
                 mohit_pred = mohit.predict(current_issue, numbers)
@@ -632,7 +446,7 @@ def automated_bot_worker():
                 print(f"[GENERATED] Sending prediction for issue {next_issue}...", flush=True)
                 send_telegram_message(msg, send_sticker=False)
 
-                active_prediction={
+                active_prediction = {
                     "target_issue": next_issue,
                     "size": hybrid_result["predictedSize"],
                     "number": hybrid_result["predictedNumber"]
@@ -643,27 +457,36 @@ def automated_bot_worker():
 
         time.sleep(POLL_INTERVAL)
 
-# ============ FLASK ROUTES (Supports GET & HEAD for UptimeRobot) ============
+# ============ FLASK ROUTES ============
 @app.route('/', methods=['GET', 'HEAD'])
 def index():
     return jsonify({
         "status": "GAMEGURU.AI PRO MAX running",
+        "bot_running": bot_running,
         "wingo_type": WINGO_TYPE,
         "stats": bot_stats,
-        "time_ist": get_ist_time().isoformat()
+        "total_results_stored": len(results_history)
     })
 
 @app.route('/stats', methods=['GET', 'HEAD'])
 def stats_route():
     return jsonify(bot_stats)
 
-# ============ AUTO-START BACKGROUND THREAD ON MODULE IMPORT ============
-def start_worker():
-    t = threading.Thread(target=automated_bot_worker, daemon=True)
-    t.start()
-    print("[INIT] Background prediction worker thread started successfully.", flush=True)
+@app.route('/results', methods=['GET'])
+def results_route():
+    # Returns up to 1440 results stored
+    return jsonify(results_history)
 
-start_worker()
+# ============ AUTO-START THREADS ============
+def start_workers():
+    t_bot = threading.Thread(target=automated_bot_worker, daemon=True)
+    t_bot.start()
+    
+    t_auth = threading.Thread(target=telegram_polling_worker, daemon=True)
+    t_auth.start()
+    print("[INIT] All background worker threads started successfully.", flush=True)
+
+start_workers()
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
