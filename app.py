@@ -438,25 +438,27 @@ def combine_hybrid(kingg, mohit, sukuna, shinchan):
 # ============ TELEGRAM SENDER ============
 def send_telegram_message(text, send_sticker=False):
     if TELEGRAM_BOT_TOKEN=="YOUR_BOT_TOKEN_HERE" or not TELEGRAM_BOT_TOKEN:
-        print("[SKIP] Telegram token not set.")
+        print("[SKIP] Telegram token not set or default.", flush=True)
         return False
     try:
         if send_sticker and CUSTOM_STICKER_FILE_ID:
             try:
                 url=f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendSticker"
-                requests.post(url, json={"chat_id":TELEGRAM_CHANNEL_ID,"sticker":CUSTOM_STICKER_FILE_ID}, timeout=10)
+                r_stk = requests.post(url, json={"chat_id":TELEGRAM_CHANNEL_ID,"sticker":CUSTOM_STICKER_FILE_ID}, timeout=10)
+                print(f"[TG STICKER] Status: {r_stk.status_code}", flush=True)
             except Exception as e:
-                print("Sticker error:", e)
+                print("Sticker error:", e, flush=True)
 
         url=f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
         payload={"chat_id":TELEGRAM_CHANNEL_ID,"text":text,"parse_mode":"Markdown"}
         r=requests.post(url, json=payload, timeout=10)
         if r.status_code!=200:
-            print("Telegram error:", r.text)
+            print("Telegram error response:", r.text, flush=True)
             return False
+        print("[TG SENT] Message delivered successfully.", flush=True)
         return True
     except Exception as e:
-        print("Telegram send error:", e)
+        print("Telegram send error exception:", e, flush=True)
         return False
 
 # ============ API FETCH ============
@@ -470,7 +472,7 @@ def fetch_wingo_history():
         if lst:
             return lst
     except Exception as e:
-        print("API fetch error:", e)
+        print("API fetch error:", e, flush=True)
     return None
 
 def get_ist_time():
@@ -543,7 +545,7 @@ def build_loss_message(target_issue, stats):
 
 # ============ MAIN BACKGROUND WORKER ============
 def automated_bot_worker():
-    print(f"[WORKER STARTED] WINGO {WINGO_TYPE} | Poll {POLL_INTERVAL}s")
+    print(f"[WORKER STARTED] WINGO {WINGO_TYPE} | Poll {POLL_INTERVAL}s", flush=True)
 
     kingg = UltimatePredictorV12()
     mohit = MohitEngine()
@@ -557,6 +559,7 @@ def automated_bot_worker():
         try:
             lst = fetch_wingo_history()
             if not lst:
+                print("[WORKER] Waiting for history data...", flush=True)
                 time.sleep(POLL_INTERVAL)
                 continue
 
@@ -612,6 +615,7 @@ def automated_bot_worker():
                 hybrid_result = combine_hybrid(kingg_pred, mohit_pred, sukuna_pred, shinchan_pred)
 
                 msg = build_prediction_message(next_issue, hybrid_result)
+                print(f"[GENERATED] Sending prediction for issue {next_issue}...", flush=True)
                 send_telegram_message(msg, send_sticker=False)
 
                 active_prediction={
@@ -621,7 +625,7 @@ def automated_bot_worker():
                 }
 
         except Exception as e:
-            print("Background worker error:", e)
+            print("Background worker loop error:", e, flush=True)
 
         time.sleep(POLL_INTERVAL)
 
@@ -643,7 +647,7 @@ def stats_route():
 def start_worker():
     t = threading.Thread(target=automated_bot_worker, daemon=True)
     t.start()
-    print("[INIT] Background prediction worker thread started automatically.")
+    print("[INIT] Background prediction worker thread started successfully.", flush=True)
 
 start_worker()
 
