@@ -1,5 +1,5 @@
 """
-GAMEGURU.AI PRO MAX - Background Auto Prediction Bot (Real API Only)
+GAMEGURU.AI PRO MAX - Background Auto Prediction Bot with Diagnostics & Auth
 Extracted from HTML: 4 Engines (KINGG v12 + MOHIT + SUKUNA v16 + SHINCHAN v5.4) + HYBRID Combiner
 """
 
@@ -187,36 +187,86 @@ def send_telegram_message(text, send_sticker=False, chat_id=None):
         print("Telegram send exception:", e, flush=True)
         return False
 
-# ============ REAL API SESSION FETCH (NO FAKE FALLBACK) ============
+# ============ API FETCH WITH DIAGNOSTICS ============
 http_session = requests.Session()
+API_BASE = "https://draw.ar-lottery01.com/WinGo"
 
 def fetch_wingo_history():
-    segment = "WinGo_30S" if WINGO_TYPE=="30S" else "WinGo_1M"
-    url = f"https://draw.ar-lottery01.com/WinGo/{segment}/GetHistoryIssuePage.json?ts={int(time.time()*1000)}"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://ar-lottery01.com/",
-        "Origin": "https://ar-lottery01.com",
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "cross-site"
+    segment = "WinGo_30S" if WINGO_TYPE == "30S" else "WinGo_1M"
+    url = f"{API_BASE}/{segment}/GetHistoryIssuePage.json"
+
+    params = {
+        "ts": int(time.time() * 1000),
+        "pageNo": 1,
+        "pageSize": 20,
     }
+
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "GameGuru-API-Client/1.0",
+    }
+
     try:
-        # Session warmup to bypass anti-bot / Cloudflare blocks
-        http_session.get("https://ar-lottery01.com/", headers={"User-Agent": headers["User-Agent"]}, timeout=6)
-        
-        res = http_session.get(url, timeout=10, headers=headers)
-        if res.status_code == 200 and res.text.strip().startswith('{'):
-            data = res.json()
-            lst = data.get('data', {}).get('list', []) or data.get('data', {}).get('gameslist', [])
-            if lst:
-                return lst
-    except Exception as e:
-        print(f"Real API fetch exception: {e}", flush=True)
-    
-    return None  # Strictly real API data only (returns None if API fails, so bot waits for real connection)
+        response = http_session.get(
+            url,
+            params=params,
+            headers=headers,
+            timeout=(5, 15),
+        )
+
+        print(
+            f"[API] HTTP={response.status_code} "
+            f"URL={response.url} "
+            f"Content-Type={response.headers.get('Content-Type')}",
+            flush=True,
+        )
+
+        if response.status_code != 200:
+            print(
+                f"[API ERROR] Body: {response.text[:500]}",
+                flush=True,
+            )
+            return None
+
+        try:
+            data = response.json()
+        except requests.exceptions.JSONDecodeError:
+            print(
+                f"[API ERROR] Response is not JSON: "
+                f"{response.text[:500]}",
+                flush=True,
+            )
+            return None
+
+        payload = data.get("data", {})
+        if not isinstance(payload, dict):
+            print("[API ERROR] Unexpected 'data' format", flush=True)
+            return None
+
+        records = payload.get("list")
+        if records is None:
+            records = payload.get("gameslist")
+
+        if not isinstance(records, list) or not records:
+            print(
+                f"[API ERROR] No history records. "
+                f"Top-level keys={list(data.keys())}; "
+                f"data keys={list(payload.keys())}",
+                flush=True,
+            )
+            return None
+
+        print(
+            f"[API OK] Received {len(records)} records; "
+            f"first record keys="
+            f"{list(records[0].keys()) if isinstance(records[0], dict) else 'not an object'}",
+            flush=True,
+        )
+        return records
+
+    except requests.RequestException as exc:
+        print(f"[API NETWORK ERROR] {type(exc).__name__}: {exc}", flush=True)
+        return None
 
 # ============ MESSAGE BUILDERS ============
 def build_prediction_message(next_issue, result):
@@ -240,7 +290,7 @@ def build_prediction_message(next_issue, result):
         f"🎱 {B('BALLS')} ➜ {balls}\n"
         f"📊 {B('CONF')} ➜ {B(str(conf)+'%')} {conf_bar}\n"
         f"      ———————————---------\n"
-        f"👑 {B('REAL API LIVE STREAM')}\n"
+        f"👑 {B('DIAGNOSTIC API STREAM')}\n"
         f"•••••••••••••••••••••••••••••••••••••"
     )
 
@@ -379,7 +429,7 @@ def automated_bot_worker():
 
             lst = fetch_wingo_history()
             if not lst:
-                print("[WORKER] Waiting for real API data...", flush=True)
+                print("[WORKER] Waiting for API data...", flush=True)
                 time.sleep(POLL_INTERVAL)
                 continue
 
@@ -439,7 +489,7 @@ def automated_bot_worker():
                 hybrid_result = combine_hybrid(kingg_pred, mohit_pred, sukuna_pred, shinchan_pred)
 
                 msg = build_prediction_message(next_issue, hybrid_result)
-                print(f"[GENERATED] Sending real prediction for issue {next_issue}...", flush=True)
+                print(f"[GENERATED] Sending prediction for issue {next_issue}...", flush=True)
                 send_telegram_message(msg, send_sticker=False)
 
                 active_prediction = {
@@ -479,7 +529,7 @@ def start_workers():
     
     t_auth = threading.Thread(target=telegram_polling_worker, daemon=True)
     t_auth.start()
-    print("[INIT] Real API and Auth threads started successfully.", flush=True)
+    print("[INIT] Diagnostic API and Auth threads started successfully.", flush=True)
 
 start_workers()
 
