@@ -9,14 +9,17 @@ import random
 import threading
 import requests
 from datetime import datetime, timezone, timedelta
+from flask import Flask, jsonify
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
-from flask import Flask
 
+# ============ GLOBAL FLASK APP (For Gunicorn) ============
 app = Flask(__name__)
+
 # ============ CONFIG ============
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE").strip()
 TELEGRAM_CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "@YOUR_CHANNEL_USERNAME").strip()
@@ -622,44 +625,28 @@ def automated_bot_worker():
 
         time.sleep(POLL_INTERVAL)
 
-# ============ FLASK APP WRAPPER ============
-def create_flask_app():
-    try:
-        from flask import Flask, jsonify
-        app = Flask(__name__)
+# ============ FLASK ROUTES (Supports GET & HEAD for UptimeRobot) ============
+@app.route('/', methods=['GET', 'HEAD'])
+def index():
+    return jsonify({
+        "status": "GAMEGURU.AI PRO MAX running",
+        "wingo_type": WINGO_TYPE,
+        "stats": bot_stats,
+        "time_ist": get_ist_time().isoformat()
+    })
 
-        @app.route('/')
-        def index():
-            return jsonify({
-                "status": "GAMEGURU.AI PRO MAX running",
-                "wingo_type": WINGO_TYPE,
-                "stats": bot_stats,
-                "time_ist": get_ist_time().isoformat()
-            })
+@app.route('/stats', methods=['GET', 'HEAD'])
+def stats_route():
+    return jsonify(bot_stats)
 
-        @app.route('/stats')
-        def stats_route():
-            return jsonify(bot_stats)
-
-        return app
-    except ImportError:
-        return None
-
-if __name__ == '__main__':
+# ============ AUTO-START BACKGROUND THREAD ON MODULE IMPORT ============
+def start_worker():
     t = threading.Thread(target=automated_bot_worker, daemon=True)
     t.start()
-    print("Bot thread started successfully.")
+    print("[INIT] Background prediction worker thread started automatically.")
 
-    flask_app = create_flask_app()
-    if flask_app:
-        port = int(os.environ.get("PORT", 5000))
-        try:
-            flask_app.run(host='0.0.0.0', port=port, use_reloader=False)
-        except KeyboardInterrupt:
-            print("Stopping...")
-    else:
-        try:
-            while True:
-                time.sleep(3600)
-        except KeyboardInterrupt:
-            print("Stopping...")
+start_worker()
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, use_reloader=False)
