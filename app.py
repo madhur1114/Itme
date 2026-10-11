@@ -1,5 +1,5 @@
 """
-GAMEGURU.AI PRO MAX - Background Auto Prediction Bot with Auth & Admin Panel
+GAMEGURU.AI PRO MAX - Background Auto Prediction Bot (Real API Only)
 Extracted from HTML: 4 Engines (KINGG v12 + MOHIT + SUKUNA v16 + SHINCHAN v5.4) + HYBRID Combiner
 """
 
@@ -29,10 +29,10 @@ POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "8"))
 
 # Bot & Auth States
 bot_running = True
-users_db = {"admin": "admin123"}  # Default admin credentials (change if needed)
+users_db = {"admin": "admin123"}
 approved_users = set(["admin"])
 pending_approvals = set()
-user_sessions = {}  # chat_id -> username
+user_sessions = {}
 
 # Stats & Results Storage (Up to 1440 results)
 bot_stats = {
@@ -187,40 +187,36 @@ def send_telegram_message(text, send_sticker=False, chat_id=None):
         print("Telegram send exception:", e, flush=True)
         return False
 
-# ============ ACCURATE WINGO ISSUE GENERATOR & API FETCH ============
-def generate_current_wingo_issue():
-    # Accurate WinGo 1M format: YYYYMMDD01XXXX based on IST minutes of the day
-    ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
-    date_str = ist_now.strftime("%Y%m%d")
-    total_mins = ist_now.hour * 60 + ist_now.minute + 1
-    return f"{date_str}01{total_mins:04d}"
+# ============ REAL API SESSION FETCH (NO FAKE FALLBACK) ============
+http_session = requests.Session()
 
 def fetch_wingo_history():
     segment = "WinGo_30S" if WINGO_TYPE=="30S" else "WinGo_1M"
     url = f"https://draw.ar-lottery01.com/WinGo/{segment}/GetHistoryIssuePage.json?ts={int(time.time()*1000)}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://ar-lottery01.com/"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://ar-lottery01.com/",
+        "Origin": "https://ar-lottery01.com",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "cross-site"
     }
     try:
-        res = requests.get(url, timeout=8, headers=headers)
+        # Session warmup to bypass anti-bot / Cloudflare blocks
+        http_session.get("https://ar-lottery01.com/", headers={"User-Agent": headers["User-Agent"]}, timeout=6)
+        
+        res = http_session.get(url, timeout=10, headers=headers)
         if res.status_code == 200 and res.text.strip().startswith('{'):
             data = res.json()
             lst = data.get('data', {}).get('list', []) or data.get('data', {}).get('gameslist', [])
             if lst:
                 return lst
-    except Exception:
-        pass
-
-    # Fallback with correct accurate issue format
-    current_issue = int(generate_current_wingo_issue())
-    simulated_list = []
-    for i in range(25):
-        simulated_list.append({
-            "issueNumber": str(current_issue - i),
-            "number": random.randint(0, 9)
-        })
-    return simulated_list
+    except Exception as e:
+        print(f"Real API fetch exception: {e}", flush=True)
+    
+    return None  # Strictly real API data only (returns None if API fails, so bot waits for real connection)
 
 # ============ MESSAGE BUILDERS ============
 def build_prediction_message(next_issue, result):
@@ -244,7 +240,7 @@ def build_prediction_message(next_issue, result):
         f"🎱 {B('BALLS')} ➜ {balls}\n"
         f"📊 {B('CONF')} ➜ {B(str(conf)+'%')} {conf_bar}\n"
         f"      ———————————---------\n"
-        f"👑 {B('ADMIN CONTROL ACTIVE')}\n"
+        f"👑 {B('REAL API LIVE STREAM')}\n"
         f"•••••••••••••••••••••••••••••••••••••"
     )
 
@@ -296,7 +292,6 @@ def telegram_polling_worker():
                     
                     chat_id = msg["chat"]["id"]
                     text = msg["text"].strip()
-                    username = msg["from"].get("username", str(chat_id))
 
                     if text.startswith("/start"):
                         send_telegram_message(
@@ -355,7 +350,7 @@ def telegram_polling_worker():
                         else:
                             send_telegram_message("⛔ Admin only command.", chat_id=chat_id)
                     elif text.startswith("/status"):
-                        status_text = f"🤖 Bot Status: {'RUNNING 🟢' if bot_running else 'STOPPED 🔴'}\n📊 Total Bets: {bot_stats['totalBets']}\nwins: {bot_stats['wins']} | Losses: {bot_stats['losses']}"
+                        status_text = f"🤖 Bot Status: {'RUNNING 🟢' if bot_running else 'STOPPED 🔴'}\n📊 Total Bets: {bot_stats['totalBets']}\nWins: {bot_stats['wins']} | Losses: {bot_stats['losses']}"
                         send_telegram_message(status_text, chat_id=chat_id)
                     elif text.startswith("/results"):
                         res_snippet = "\n".join([f"Issue {r['issue'][-5:]} | Num: {r['number']} ({r['size']})" for r in results_history[:10]])
@@ -384,6 +379,7 @@ def automated_bot_worker():
 
             lst = fetch_wingo_history()
             if not lst:
+                print("[WORKER] Waiting for real API data...", flush=True)
                 time.sleep(POLL_INTERVAL)
                 continue
 
@@ -431,7 +427,7 @@ def automated_bot_worker():
                 try:
                     next_issue = str(int(current_issue) + 1)
                 except:
-                    next_issue = generate_current_wingo_issue()
+                    next_issue = str(int(time.time()))
 
                 numbers = [int(item.get('number', 0)) for item in lst[:20]]
 
@@ -443,7 +439,7 @@ def automated_bot_worker():
                 hybrid_result = combine_hybrid(kingg_pred, mohit_pred, sukuna_pred, shinchan_pred)
 
                 msg = build_prediction_message(next_issue, hybrid_result)
-                print(f"[GENERATED] Sending prediction for issue {next_issue}...", flush=True)
+                print(f"[GENERATED] Sending real prediction for issue {next_issue}...", flush=True)
                 send_telegram_message(msg, send_sticker=False)
 
                 active_prediction = {
@@ -474,7 +470,6 @@ def stats_route():
 
 @app.route('/results', methods=['GET'])
 def results_route():
-    # Returns up to 1440 results stored
     return jsonify(results_history)
 
 # ============ AUTO-START THREADS ============
@@ -484,7 +479,7 @@ def start_workers():
     
     t_auth = threading.Thread(target=telegram_polling_worker, daemon=True)
     t_auth.start()
-    print("[INIT] All background worker threads started successfully.", flush=True)
+    print("[INIT] Real API and Auth threads started successfully.", flush=True)
 
 start_workers()
 
