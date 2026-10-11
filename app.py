@@ -1,5 +1,5 @@
 """
-GAMEGURU.AI PRO MAX - Background Auto Prediction Bot with Diagnostics & Auth
+GAMEGURU.AI PRO MAX - Background Auto Prediction Bot with curl_cffi & Auth
 Extracted from HTML: 4 Engines (KINGG v12 + MOHIT + SUKUNA v16 + SHINCHAN v5.4) + HYBRID Combiner
 """
 
@@ -7,7 +7,7 @@ import os
 import time
 import random
 import threading
-import requests
+from curl_cffi import requests  # Using curl_cffi to bypass Cloudflare/TLS fingerprinting
 from datetime import datetime, timezone, timedelta
 from flask import Flask, jsonify
 
@@ -187,8 +187,7 @@ def send_telegram_message(text, send_sticker=False, chat_id=None):
         print("Telegram send exception:", e, flush=True)
         return False
 
-# ============ API FETCH WITH DIAGNOSTICS ============
-http_session = requests.Session()
+# ============ API FETCH WITH CURL_CFFI (Bypasses Cloudflare & TLS Blocks) ============
 API_BASE = "https://draw.ar-lottery01.com/WinGo"
 
 def fetch_wingo_history():
@@ -203,14 +202,16 @@ def fetch_wingo_history():
 
     headers = {
         "Accept": "application/json",
-        "User-Agent": "GameGuru-API-Client/1.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     }
 
     try:
-        response = http_session.get(
+        # Using impersonate="chrome120" to perfectly mimic browser TLS fingerprint and bypass Cloudflare
+        response = requests.get(
             url,
             params=params,
             headers=headers,
+            impersonate="chrome120",
             timeout=(5, 15),
         )
 
@@ -222,20 +223,13 @@ def fetch_wingo_history():
         )
 
         if response.status_code != 200:
-            print(
-                f"[API ERROR] Body: {response.text[:500]}",
-                flush=True,
-            )
+            print(f"[API ERROR] Body: {response.text[:500]}", flush=True)
             return None
 
         try:
             data = response.json()
-        except requests.exceptions.JSONDecodeError:
-            print(
-                f"[API ERROR] Response is not JSON: "
-                f"{response.text[:500]}",
-                flush=True,
-            )
+        except Exception:
+            print(f"[API ERROR] Response is not JSON: {response.text[:500]}", flush=True)
             return None
 
         payload = data.get("data", {})
@@ -248,23 +242,13 @@ def fetch_wingo_history():
             records = payload.get("gameslist")
 
         if not isinstance(records, list) or not records:
-            print(
-                f"[API ERROR] No history records. "
-                f"Top-level keys={list(data.keys())}; "
-                f"data keys={list(payload.keys())}",
-                flush=True,
-            )
+            print(f"[API ERROR] No history records found.", flush=True)
             return None
 
-        print(
-            f"[API OK] Received {len(records)} records; "
-            f"first record keys="
-            f"{list(records[0].keys()) if isinstance(records[0], dict) else 'not an object'}",
-            flush=True,
-        )
+        print(f"[API OK] Received {len(records)} real records.", flush=True)
         return records
 
-    except requests.RequestException as exc:
+    except Exception as exc:
         print(f"[API NETWORK ERROR] {type(exc).__name__}: {exc}", flush=True)
         return None
 
@@ -290,7 +274,7 @@ def build_prediction_message(next_issue, result):
         f"🎱 {B('BALLS')} ➜ {balls}\n"
         f"📊 {B('CONF')} ➜ {B(str(conf)+'%')} {conf_bar}\n"
         f"      ———————————---------\n"
-        f"👑 {B('DIAGNOSTIC API STREAM')}\n"
+        f"👑 {B('CURL_CFFI REAL API STREAM')}\n"
         f"•••••••••••••••••••••••••••••••••••••"
     )
 
@@ -429,7 +413,7 @@ def automated_bot_worker():
 
             lst = fetch_wingo_history()
             if not lst:
-                print("[WORKER] Waiting for API data...", flush=True)
+                print("[WORKER] Waiting for curl_cffi real API data...", flush=True)
                 time.sleep(POLL_INTERVAL)
                 continue
 
@@ -529,7 +513,7 @@ def start_workers():
     
     t_auth = threading.Thread(target=telegram_polling_worker, daemon=True)
     t_auth.start()
-    print("[INIT] Diagnostic API and Auth threads started successfully.", flush=True)
+    print("[INIT] curl_cffi and Auth threads started successfully.", flush=True)
 
 start_workers()
 
