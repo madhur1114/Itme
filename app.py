@@ -435,7 +435,7 @@ def combine_hybrid(kingg, mohit, sukuna, shinchan):
         "vote":votes
     }
 
-# ============ TELEGRAM SENDER ============
+# ============ TELEGRAM SENDER (Plain Text Mode) ============
 def send_telegram_message(text, send_sticker=False):
     if TELEGRAM_BOT_TOKEN=="YOUR_BOT_TOKEN_HERE" or not TELEGRAM_BOT_TOKEN:
         print("[SKIP] Telegram token not set or default.", flush=True)
@@ -444,13 +444,12 @@ def send_telegram_message(text, send_sticker=False):
         if send_sticker and CUSTOM_STICKER_FILE_ID:
             try:
                 url=f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendSticker"
-                r_stk = requests.post(url, json={"chat_id":TELEGRAM_CHANNEL_ID,"sticker":CUSTOM_STICKER_FILE_ID}, timeout=10)
-                print(f"[TG STICKER] Status: {r_stk.status_code}", flush=True)
+                requests.post(url, json={"chat_id":TELEGRAM_CHANNEL_ID,"sticker":CUSTOM_STICKER_FILE_ID}, timeout=10)
             except Exception as e:
                 print("Sticker error:", e, flush=True)
 
         url=f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        payload={"chat_id":TELEGRAM_CHANNEL_ID,"text":text,"parse_mode":"Markdown"}
+        payload={"chat_id":TELEGRAM_CHANNEL_ID,"text":text}  # Removed parse_mode to prevent markdown entity errors
         r=requests.post(url, json=payload, timeout=10)
         if r.status_code!=200:
             print("Telegram error response:", r.text, flush=True)
@@ -473,7 +472,6 @@ def fetch_wingo_history():
     try:
         res = requests.get(url, timeout=10, headers=headers)
         if res.status_code == 200 and res.text.strip():
-            # Check if response starts with JSON bracket or brace
             if res.text.strip().startswith('{') or res.text.strip().startswith('['):
                 data = res.json()
                 lst = data.get('data', {}).get('list', []) or data.get('data', {}).get('gameslist', [])
@@ -482,7 +480,7 @@ def fetch_wingo_history():
     except Exception as e:
         pass
 
-    # BULLETPROOF FALLBACK: If API blocks Render IP, generate continuous rolling history so bot never breaks
+    # BULLETPROOF FALLBACK
     simulated_list = []
     base_issue = int(time.time() // 60) * 100
     for i in range(25):
