@@ -1,5 +1,5 @@
 """
-GAMEGURU.AI PRO MAX - Background Auto Prediction Bot with curl_cffi & Auth
+GAMEGURU.AI PRO MAX - Background Auto Prediction Bot with curl_cffi Session & Auth
 Extracted from HTML: 4 Engines (KINGG v12 + MOHIT + SUKUNA v16 + SHINCHAN v5.4) + HYBRID Combiner
 """
 
@@ -7,7 +7,7 @@ import os
 import time
 import random
 import threading
-from curl_cffi import requests  # Using curl_cffi to bypass Cloudflare/TLS fingerprinting
+from curl_cffi import requests  # Using curl_cffi Session for Cloudflare handshake & TLS bypass
 from datetime import datetime, timezone, timedelta
 from flask import Flask, jsonify
 
@@ -187,7 +187,8 @@ def send_telegram_message(text, send_sticker=False, chat_id=None):
         print("Telegram send exception:", e, flush=True)
         return False
 
-# ============ API FETCH WITH CURL_CFFI (Bypasses Cloudflare & TLS Blocks) ============
+# ============ API FETCH WITH CURL_CFFI SESSION & HANDSHAKE ============
+http_session = requests.Session()
 API_BASE = "https://draw.ar-lottery01.com/WinGo"
 
 def fetch_wingo_history():
@@ -201,13 +202,19 @@ def fetch_wingo_history():
     }
 
     headers = {
-        "Accept": "application/json",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://ar-lottery01.com/",
+        "Origin": "https://ar-lottery01.com",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     }
 
     try:
-        # Using impersonate="chrome120" to perfectly mimic browser TLS fingerprint and bypass Cloudflare
-        response = requests.get(
+        # Step 1: Perform handshake to collect Cloudflare cookies
+        http_session.get("https://ar-lottery01.com/", impersonate="chrome120", timeout=6)
+
+        # Step 2: Fetch history using the session
+        response = http_session.get(
             url,
             params=params,
             headers=headers,
@@ -217,32 +224,20 @@ def fetch_wingo_history():
 
         print(
             f"[API] HTTP={response.status_code} "
-            f"URL={response.url} "
             f"Content-Type={response.headers.get('Content-Type')}",
             flush=True,
         )
 
-        if response.status_code != 200:
-            print(f"[API ERROR] Body: {response.text[:500]}", flush=True)
+        if response.status_code != 200 or not response.text.strip().startswith('{'):
+            print(f"[API ERROR] Body snippet: {response.text[:200]}", flush=True)
             return None
 
-        try:
-            data = response.json()
-        except Exception:
-            print(f"[API ERROR] Response is not JSON: {response.text[:500]}", flush=True)
-            return None
-
+        data = response.json()
         payload = data.get("data", {})
-        if not isinstance(payload, dict):
-            print("[API ERROR] Unexpected 'data' format", flush=True)
-            return None
-
-        records = payload.get("list")
-        if records is None:
-            records = payload.get("gameslist")
+        records = payload.get("list") or payload.get("gameslist")
 
         if not isinstance(records, list) or not records:
-            print(f"[API ERROR] No history records found.", flush=True)
+            print("[API ERROR] No history records found in JSON.", flush=True)
             return None
 
         print(f"[API OK] Received {len(records)} real records.", flush=True)
