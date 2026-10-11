@@ -14,7 +14,7 @@ try:
     load_dotenv()
 except ImportError:
     pass
-
+app = Flask(__name__)
 # ============ CONFIG ============
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE").strip()
 TELEGRAM_CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "@YOUR_CHANNEL_USERNAME").strip()
